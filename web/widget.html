@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' file:; style-src 'unsafe-inline' file:; img-src data:; connect-src 'none'; form-action 'none'">
+<link rel="stylesheet" href="theme.css">
+<!--
+  Desktop widgets: widget.html?type=meeting|alerts|systems&id=…
+  They follow macOS's own desktop widgets: fixed sizes (medium 338×158, large
+  338×354), near-black glass drawn by the app, a 16 pt margin, white text with grey
+  for anything secondary, a small coloured label on top. This page is transparent.
+-->
+<style>
+  /* colours follow the dashboard's theme (dark by default; Light and Frosted glass
+     use the light set). The app's glass behind the page changes with it. */
+  :root { --w-ink: #fff; --w-2: rgba(235, 235, 245, .62); --w-3: rgba(235, 235, 245, .55); --w-4: rgba(235, 235, 245, .4);
+          --w-red: #ff453a; --w-amber: #ffd60a; --w-go: #30d158; }
+  :root[data-theme="light"], :root[data-theme="glass"][data-glass="frosted"] {
+    --w-ink: #1d1d1f; --w-2: rgba(60, 60, 67, .78); --w-3: rgba(60, 60, 67, .7); --w-4: rgba(60, 60, 67, .5);
+    --w-red: #d70015; --w-amber: #9a5700; --w-go: #1a7f37; }
+  html, body { background: transparent; height: 100%; overflow: hidden; font-size: 16px; }
+  body { padding: 14px 16px; display: flex; flex-direction: column; color: var(--w-ink); font-family: var(--sans); }
+  .muted { color: var(--w-2); }
+  .faint { color: var(--w-3); }   /* .38 (tertiary) read at 3:1 on the glass; text needs 4.5:1 */
+  .label { font: 600 11px/1.2 var(--sans); color: var(--w-2); display: flex; align-items: center; gap: 6px; }
+  .label .n { margin-left: auto; font-weight: 500; }
+  .label.red { color: var(--w-red); } .label.amber { color: var(--w-amber); } .label.go { color: var(--w-go); }
+  .act { font-size: 12px; padding: 3px 10px; border-radius: 99px; background: color-mix(in srgb, var(--w-ink) 12%, transparent); color: var(--w-ink); }
+  .act:hover { background: color-mix(in srgb, var(--w-ink) 20%, transparent); }
+  .act.amber { background: color-mix(in srgb, var(--w-amber) 20%, transparent); color: var(--w-amber); }
+
+  /* what needs you (medium) */
+  .items { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
+  .it { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.3; cursor: pointer; }
+  .it .bar { width: 3px; align-self: stretch; border-radius: 2px; background: var(--w-amber); flex: none; }
+  .it .bar.red { background: var(--w-red); }
+  .it .tx { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; flex: 1; min-width: 0; }
+  .it .inv { flex: none; border: 0; cursor: pointer; font-size: 11px; padding: 2px 8px; }
+  .more { font-size: 11px; flex: none; }
+  .calm { margin: auto 0; display: flex; align-items: center; gap: 10px; }
+  .calm .ok { width: 30px; height: 30px; border-radius: 50%; background: color-mix(in srgb, var(--w-go) 18%, transparent); color: var(--w-go); display: grid; place-items: center; font-size: 16px; font-weight: 700; }
+  .calm .t { font: 600 15px/1.25 var(--display); } .calm .s { font-size: 12px; }
+
+  /* systems (medium): a grid of tiles, one per system */
+  .grid { margin-top: 10px; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 6px; flex: 1; min-height: 0; cursor: pointer; }
+  .tile { background: color-mix(in srgb, var(--w-ink) 6%, transparent); border-radius: 12px; padding: 7px 9px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+  .tile .nm { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .st { font-size: 11px; display: flex; align-items: center; gap: 5px; margin-top: 2px; white-space: nowrap; overflow: hidden; }
+  /* dark cockpit: a normal system is a quiet grey dot, not a row of green lights;
+     green is the "All normal" label when every tile is quiet */
+  .tile .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--w-4); flex: none; }
+  .grid.many { grid-template-columns: repeat(4, 1fr); } .grid.many .tile { padding: 5px 8px; }
+  .tile.warn { background: color-mix(in srgb, var(--w-amber) 14%, transparent); } .tile.warn .dot { background: var(--w-amber); } .tile.warn .st { color: var(--w-amber); }
+  .tile.down { background: color-mix(in srgb, var(--w-red) 18%, transparent); } .tile.down .dot { background: var(--w-red); } .tile.down .st { color: var(--w-red); }
+
+  /* calendar (large): a scrollable day, like Calendar's day view */
+  .cal-head { display: flex; align-items: flex-end; gap: 10px; }
+  .cal-head .wd { font: 600 11px/1.2 var(--sans); color: var(--w-red); letter-spacing: .02em; }
+  .cal-head .dt { font: 300 26px/1 var(--rounded); letter-spacing: -.01em; }
+  .cal-head .nav { margin-left: auto; display: flex; gap: 2px; align-items: center; }
+  .cal-head .nav button { border: 0; background: transparent; color: var(--w-2); font-size: 15px; width: 24px; height: 24px; border-radius: 7px; cursor: pointer; }
+  .cal-head .nav button:hover { background: color-mix(in srgb, var(--w-ink) 12%, transparent); color: var(--w-ink); }
+  .cal-head .nav .today { width: auto; font-size: 11px; padding: 0 8px; }
+  .nextline { font-size: 12px; margin: 7px 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .allday { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .allday span { font-size: 11px; padding: 1px 7px; border-radius: 6px; background: color-mix(in srgb, var(--w-ink) 10%, transparent); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scroller { flex: 1; min-height: 0; overflow-y: auto; position: relative; cursor: grab; border-top: 1px solid color-mix(in srgb, var(--w-ink) 8%, transparent); }
+  .scroller.dragging { cursor: grabbing; }
+  .scroller::-webkit-scrollbar { width: 0; }
+  .day { position: relative; margin-left: 38px; }
+  .hour { height: var(--hh); border-top: 1px solid color-mix(in srgb, var(--w-ink) 7%, transparent); position: relative; }
+  .hour b { position: absolute; left: -38px; top: -7px; width: 32px; text-align: right; font: 500 10px var(--sans); color: var(--w-4); }
+  .ev { position: absolute; border-radius: 6px; padding: 3px 6px; font-size: 11px; line-height: 1.25; overflow: hidden; background: color-mix(in srgb, var(--c) 30%, transparent); border-left: 3px solid var(--c); cursor: pointer; }
+  .ev .tt { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ev .tm { color: var(--w-2); white-space: nowrap; }
+  .ev.past { opacity: .45; }
+  .ev .join { position: absolute; right: 4px; top: 3px; font-size: 10px; padding: 1px 7px; }
+  .ev.tent { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 22%, transparent) 0 6px, transparent 6px 10px); }
+  .now { position: absolute; left: -6px; right: 0; height: 0; border-top: 2px solid var(--w-red); z-index: 2; pointer-events: none; }
+  .now::before { content: ""; position: absolute; left: -2px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--w-red); }
+  .emptyday { font-size: 12px; text-align: center; padding: 18px 0; }
+</style>
+</head>
+<body>
+<div id="w" style="display:contents"></div>
+<script src="core.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const TYPE = params.get("type") || "alerts";
+const w = document.getElementById("w");
+
+// ── calendar helpers ──
+let dayOff = 0;   // 0 = today; ‹ › page through the week the app loads
+const HOUR_PX = 40;
+const minsOf = minutesOf;   // minutes since midnight in the configured timezone (core.js)
+function eventsOn(key) {
+  const evs = (WD.data.calendar?.events || []).filter((e) => dayKey(e.start) === key);
+  return { allDay: evs.filter((e) => e.allDay), timed: evs.filter((e) => !e.allDay).map((e) => ({ ...e, s: new Date(e.start), e: new Date(e.end) })).sort((a, b) => a.s - b.s) };
+}
+// side-by-side columns for meetings that overlap, like Calendar does
+function lanes(evs) {
+  const out = [];
+  let group = [], groupEnd = 0;
+  const flush = () => { const cols = []; for (const ev of group) { let i = cols.findIndex((end) => end <= ev.s); if (i < 0) { i = cols.length; cols.push(0); } cols[i] = ev.e; ev.col = i; } group.forEach((ev) => (ev.cols = cols.length)); out.push(...group); group = []; };
+  for (const ev of evs) { if (group.length && ev.s >= groupEnd) flush(); group.push(ev); groupEnd = Math.max(groupEnd, +ev.e); }
+  if (group.length) flush();
+  return out;
+}
+
+const render = {
+  meeting() {
+    const cal = WD.data.calendar;
+    if (cal?.error === "no-access") return `<div class="label">Calendar</div><div class="calm"><div class="s muted">Allow calendar access in the dashboard's Settings.</div></div>`;
+    const target = new Date(Date.now() + dayOff * 86400000), key = dayKey(target), isToday = dayOff === 0;
+    const { allDay, timed } = eventsOn(key);
+    const first = Math.min(8, ...timed.map((e) => Math.floor(minsOf(e.s) / 60)));
+    const last = Math.max(20, ...timed.map((e) => Math.ceil((minsOf(e.e) || 1440) / 60)));
+    const px = (m) => ((m - first * 60) / 60) * HOUR_PX;
+    const m = meetings(), next = m.current || m.next;
+    const nextLine = next ? (m.current ? `Now: <b class="private">${h(next.title)}</b>, until ${clock(next.e)}` : `Next: <b class="private">${h(next.title)}</b> · ${dayKey(next.s) === dayKey(Date.now()) ? "" : "tomorrow, "}in ${span((next.s - Date.now()) / 60000)}`) : "No more meetings today";
+    const hours = Array.from({ length: last - first }, (_, i) => `<div class="hour"><b>${String(first + i).padStart(2, "0")}:00</b></div>`).join("");
+    const blocks = lanes(timed).map((e) => {
+      const top = px(minsOf(e.s)), end = dayKey(e.e) === key ? minsOf(e.e) : 1440, hgt = Math.max(20, px(end) - top - 2);
+      const soon = isToday && e.link && e.s - Date.now() < 10 * 60000 && e.e > Date.now();
+      return `<div class="ev ${e.e < Date.now() ? "past" : ""} ${e.tentative ? "tent" : ""}" style="--c:${h(e.color || "#7c84e8")};top:${top}px;height:${hgt}px;left:calc(${(100 / e.cols) * e.col}% + 1px);width:calc(${100 / e.cols}% - 3px)" ${e.link ? `data-url="${h(e.link)}"` : ""} title="${h(e.title)} — ${clock(e.s)}–${clock(e.e)}${e.tentative ? " (tentative)" : ""}">
+        <div class="tt private" dir="auto">${h(e.title)}</div>${hgt > 30 ? `<div class="tm">${clock(e.s)}–${clock(e.e)}</div>` : ""}
+        ${soon ? `<button class="act amber join" data-url="${h(e.link)}">Join</button>` : ""}</div>`;
+    }).join("");
+    const nowLine = isToday ? `<div class="now" style="top:${px(nowMinutes())}px"></div>` : "";
+    return `<div class="cal-head"><div><div class="wd">${fmt("en-GB", { weekday: "long" }).format(target).toUpperCase()}</div>
+        <div class="dt">${fmt("en-GB", { day: "numeric", month: "long" }).format(target)}</div></div>
+        <div class="nav"><button data-day="-1" title="Previous day" ${dayOff <= 0 ? "disabled style='opacity:.3'" : ""}>‹</button>${isToday ? "" : `<button class="today" data-day="0">Today</button>`}<button data-day="1" title="Next day" ${dayOff >= 6 ? "disabled style='opacity:.3'" : ""}>›</button></div></div>
+      <div class="nextline muted">${nextLine}</div>
+      ${allDay.length ? `<div class="allday">${allDay.map((e) => `<span class="private" dir="auto">${h(e.title)}</span>`).join("")}</div>` : ""}
+      <div class="scroller" id="sc">${timed.length ? "" : `<div class="emptyday faint">No meetings ${isToday ? "today" : "this day"}</div>`}<div class="day" style="--hh:${HOUR_PX}px">${hours}${blocks}${nowLine}</div></div>`;
+  },
+  alerts() {
+    const b = briefing();
+    if (b.level === "unknown") return `<div class="label">What needs you</div><div class="calm"><div><div class="t">Still checking…</div>
+      <div class="s muted">${h(b.line.replace(/^Still checking /, "Waiting for ").replace(/…$/, ""))}</div></div></div>`;
+    if (!b.alerts.length) return `<div class="label">What needs you</div><div class="calm"><div class="ok">✓</div><div><div class="t">Nothing needs you</div>
+      <div class="s muted">${(WD.data.health?.systems || []).length ? "All systems normal" : ""}</div></div></div>`;
+    return `<div class="label ${b.level}">${b.level === "red" ? "Needs you now" : "Needs a look"}<span class="n">${b.alerts.length}</span></div>
+      <div class="items">${b.alerts.slice(0, 3).map((a) => `<div class="it" ${a.url ? `data-url="${h(a.url)}"` : a.fix ? `data-copy="${h(a.fix)}"` : `data-do="dashboard"`}>
+        <span class="bar ${a.level === "red" ? "red" : ""}"></span><span class="tx ${a.private ? "private" : ""}" dir="auto">${h(a.text)}</span>${a.investigate ? `<button class="act inv" data-investigate="${h(a.investigate)}" title="Opens Terminal and starts Claude's incident investigation with these details">Investigate</button>` : ""}</div>`).join("")}
+        <div class="more faint" data-do="dashboard" data-total="${b.alerts.length}"></div></div>`;
+  },
+  systems() {
+    const s = WD.data.health?.systems || [];
+    const word = { ok: "Normal", warn: "Degraded", down: "Down", unknown: "Unknown" };
+    const bad = s.filter((x) => x.status !== "ok").length;
+    let tiles = s, folded = 0;
+    if (s.length > 8) { const loud = s.filter((x) => x.status !== "ok").slice(0, 7); tiles = loud.concat(s.filter((x) => x.status === "ok").slice(0, 7 - loud.length)); folded = s.length - tiles.length; }
+    return `<div class="label ${s.some((x) => x.status === "down") ? "red" : bad ? "amber" : s.length ? "go" : ""}">Systems<span class="n">${s.length ? (bad ? `${bad} need${bad === 1 ? "s" : ""} a look` : "All normal") : ""}</span></div>
+      <div class="grid ${s.length > 6 ? "many" : ""}" data-do="dashboard">${tiles.map((x) => `<div class="tile ${x.status === "ok" ? "" : x.status}"><div class="nm">${h(x.name)}</div>
+        <div class="st ${x.status === "ok" ? "muted" : ""}"><span class="dot"></span>${word[x.status] || "Unknown"}</div></div>`).join("")}${folded ? `<div class="tile" title="On the dashboard"><div class="nm muted">${folded} more</div></div>` : ""}${s.length ? "" : `<div class="muted" style="font-size:12px">Checking…</div>`}</div>`;
+  },
+};
+
+// a medium widget holds what fits: drop whole items from the end (never half a
+// line) and say how many more there are, like macOS's own widgets
+function fitAlerts() {
+  const box = w.querySelector(".items"), more = w.querySelector(".more");
+  if (!box || !more) return;
+  const total = Number(more.dataset.total), items = [...box.querySelectorAll(".it")];
+  const say = () => { const n = total - box.querySelectorAll(".it").length; more.textContent = n ? `${n} more on the dashboard` : ""; more.hidden = !n; };
+  say();
+  while (box.scrollHeight > box.clientHeight + 1 && items.length > 1) { items.pop().remove(); say(); }
+}
+
+// keep the calendar's scroll position across redraws; open it at the current hour
+let scrollY = null, lastHTML = "", unseen = false;
+function draw(force) {
+  // covered (a desktop widget under your windows): draw when it shows again, not now
+  if (document.hidden && force !== true) { unseen = true; return; }
+  unseen = false;
+  const html = WD.batch(() => (render[TYPE] || render.alerts)());
+  if (html === lastHTML && force !== true) return;   // nothing changed: keep the nodes and the scroll
+  lastHTML = html;
+  const sc = document.getElementById("sc");
+  if (sc) scrollY = sc.scrollTop;
+  w.innerHTML = html;
+  fitAlerts();
+  const nsc = document.getElementById("sc");
+  if (nsc) {
+    if (scrollY == null) {   // first look at a day: today an hour before now, another day its first meeting
+      const mark = nsc.querySelector(".now") || nsc.querySelector(".ev");
+      scrollY = mark ? Math.max(0, mark.offsetTop - HOUR_PX) : 0;
+    }
+    nsc.scrollTop = scrollY;
+  }
+}
+document.addEventListener("click", (e) => {
+  if (dragged) { dragged = false; return; }   // the end of a drag isn't a click
+  const day = e.target.closest("[data-day]");
+  if (day) { dayOff = day.dataset.day === "0" ? 0 : Math.max(0, Math.min(6, dayOff + Number(day.dataset.day))); scrollY = null; draw(true); return; }
+  // Investigate on an alert: Terminal + Claude, like the dashboard's button (the row itself opens its link)
+  const inv = e.target.closest("[data-investigate]");
+  if (inv) { WD.bridge({ cmd: "investigate", subject: inv.dataset.investigate }).catch(() => {}); return; }
+  const t = e.target.closest("[data-url],[data-copy],[data-do]");
+  if (!t) return;
+  if (t.dataset.url) WD.open(t.dataset.url);
+  else if (t.dataset.copy) WD.copy(t.dataset.copy);
+  else WD.bridge({ cmd: "dashboard" });
+});
+// drag the day up and down, as well as scrolling it
+let drag = null, dragged = false;
+document.addEventListener("mousedown", (e) => {
+  const sc = e.target.closest("#sc"); if (!sc || e.altKey || e.button !== 0) return;
+  drag = { y: e.clientY, top: sc.scrollTop, sc }; dragged = false;
+});
+document.addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  const dy = e.clientY - drag.y;
+  if (Math.abs(dy) > 3) { dragged = true; drag.sc.classList.add("dragging"); }
+  if (dragged) drag.sc.scrollTop = drag.top - dy;
+});
+document.addEventListener("mouseup", () => { if (drag) { drag.sc.classList.remove("dragging"); drag = null; } });
+WD.on(draw);
+WD.boot();
+setInterval(draw, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && unseen) draw(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# your real config lives in ~/.config/work-dashboard/ — never here
+config.json
+*.local.json
+.DS_Store
+build/
+*.app
+__pycache__/
+*.pyc
