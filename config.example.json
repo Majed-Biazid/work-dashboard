@@ -1,0 +1,191 @@
+{
+  "_readme": "Copy to ~/.config/work-dashboard/config.json and fill in. Every key is optional: a section whose source is not configured simply stays hidden. See README.md → Configuration.",
+  "me": {
+    "name": "Your Name",
+    "github": "your-github-login",
+    "basecampPersonId": 0
+  },
+  "timezone": "Asia/Riyadh",
+  "textScale": 1.0,
+  "workday": {
+    "days": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "standup": "09:30",
+    "standupPanelFrom": "09:00",
+    "standupPanelUntil": "11:00"
+  },
+  "team": [
+    {
+      "name": "Teammate One",
+      "github": "teammate-one"
+    },
+    {
+      "name": "Teammate Two",
+      "github": "teammate-two"
+    }
+  ],
+  "github": {
+    "org": "your-org",
+    "releaseRadar": [
+      "api",
+      "web"
+    ],
+    "reviewWaitHours": {
+      "amber": 24,
+      "red": 72
+    }
+  },
+  "linear": {
+    "workspace": "your-workspace",
+    "keychainService": "work-dashboard-linear"
+  },
+  "basecamp": {
+    "account": 0,
+    "issues": {
+      "project": 0,
+      "cardTable": 0,
+      "columns": [
+        0
+      ],
+      "teamProject": 0,
+      "label": "Tech issues",
+      "titlePattern": "^\\[(?<p>High|Medium|Low)\\]\\s*",
+      "priorityLabels": {
+        "High": "high",
+        "Medium": "medium",
+        "Low": "low"
+      }
+    },
+    "errorChat": {
+      "project": 0,
+      "room": 0,
+      "match": "STAGE: *prod",
+      "groupPattern": "",
+      "lines": 600,
+      "label": "Prod error log"
+    }
+  },
+  "systems": [
+    {
+      "name": "API",
+      "health": [
+        {
+          "url": "https://api.example.com/health"
+        }
+      ],
+      "pods": {
+        "context": "gke_project_region_cluster",
+        "namespace": "default",
+        "prefix": "api-"
+      },
+      "kind": "backend",
+      "checkLabels": {
+        "billing": "Can't reach the billing database"
+      }
+    },
+    {
+      "name": "Web app",
+      "detail": "frontend",
+      "kind": "frontend",
+      "health": [
+        {
+          "url": "https://app.example.com"
+        }
+      ],
+      "version": "https://app.example.com/version.json",
+      "deploy": {
+        "repo": "web-app",
+        "workflow": "Deploy"
+      }
+    }
+  ],
+  "betterstack": {
+    "keychainService": "work-dashboard-betterstack"
+  },
+  "claude": {
+    "projectsDir": "~/.claude/projects",
+    "activeHours": 24,
+    "issueKeys": [
+      "ABC"
+    ],
+    "workRoots": [
+      "~/Projects/work"
+    ],
+    "workWords": []
+  },
+  "dbProxy": {
+    "startCommand": "",
+    "log": "",
+    "keychainService": "",
+    "psql": "psql",
+    "ports": [
+      {
+        "port": 5432,
+        "name": "Local",
+        "role": "dev"
+      }
+    ]
+  },
+  "devTestPhone": {
+    "prefix": "",
+    "fromUserId": "",
+    "note": ""
+  },
+  "showConnections": true,
+  "kubeProdReminder": true,
+  "intervals": {
+    "health": 60,
+    "github": 120,
+    "linear": 120,
+    "basecamp": 120
+  },
+  "notifications": {
+    "meetingMinutesBefore": 5,
+    "systemDown": true,
+    "newUrgentIssue": true,
+    "loginExpired": true
+  },
+  "widgets": [
+    {
+      "id": "meeting",
+      "type": "meeting",
+      "enabled": true,
+      "layer": "desktop",
+      "allSpaces": true,
+      "size": "large"
+    },
+    {
+      "id": "alerts",
+      "type": "alerts",
+      "enabled": true,
+      "layer": "desktop",
+      "allSpaces": true,
+      "size": "medium"
+    },
+    {
+      "id": "systems",
+      "type": "systems",
+      "enabled": false,
+      "layer": "desktop",
+      "allSpaces": true,
+      "size": "medium"
+    }
+  ],
+  "incidents": {
+    "cwd": "~/Projects",
+    "command": "/incident-investigation"
+  },
+  "dashboard": {
+    "display": "builtin"
+  },
+  "appearance": {
+    "theme": "graphite",
+    "glass": "smoked",
+    "tint": "ocean"
+  }
+}

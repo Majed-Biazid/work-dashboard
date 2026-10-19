@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' file:; style-src 'unsafe-inline' file:; img-src data:; connect-src 'none'; form-action 'none'">
+<title>Manara</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  body { display: grid; grid-template-rows: auto 1fr; height: 100vh; overflow: hidden; }
+
+  /* the briefing: one sentence about what matters now */
+  .brief { display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: end; padding: 1.3rem 2.5rem 1rem; }
+  /* in a window the transparent titlebar (28 pt, traffic lights top-left) lies over
+     the header: keep the briefing below it. Full screen has no titlebar. */
+  body.windowed .brief { padding-top: calc(28px + .9rem); }
+  .line { font: 500 var(--t-lead)/1.25 var(--display); letter-spacing: -.01em; max-width: 52rem; }
+  .lead { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .line.red { color: var(--red); } .line.amber { color: var(--amber); } .line.unknown { color: var(--ink-2); }
+  .sub { margin-top: .55rem; color: var(--ink-2); font-size: var(--t-body); display: flex; gap: 1.6rem; flex-wrap: wrap; }
+  .sub b { color: var(--ink); font-weight: 600; }
+  .side { text-align: right; }
+  .time { font: 300 2.25rem/1 var(--rounded); letter-spacing: -.02em; }
+  .clockrow { display: flex; align-items: center; justify-content: flex-end; gap: .9rem; }
+  .refresh { display: inline-flex; align-items: center; gap: .35rem; }
+  .refresh .spin { display: inline-block; }
+  .refresh.busy .spin { animation: turn 1s linear infinite; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+  /* DB proxy: a dot and a word; one click checks, or starts it when it's off */
+  .proxy { display: inline-flex; align-items: center; gap: .4rem; }
+  .proxy .dot { width: .5rem; height: .5rem; border-radius: 50%; background: var(--ink-3); }
+  .proxy.up .dot { background: var(--go); } .proxy.part .dot { background: var(--amber); } .proxy.off .dot { background: var(--red); }
+  .proxy.off { color: var(--red); background: var(--red-wash); font-weight: 600; }
+  .proxy.busy .dot { animation: breathe 1s ease-in-out infinite; }
+  .proxy.fresh { color: var(--go); background: var(--go-wash); font-weight: 600; }
+  .date { color: var(--ink-3); font-size: var(--t-small); margin-top: .3rem; }
+  .tools { display: flex; gap: .35rem; justify-content: flex-end; margin-top: .5rem; }
+
+  /* three columns, divided by hairlines — no boxes */
+  .cols { display: grid; grid-template-columns: var(--c1, 1fr) 7px var(--c2, 1.2fr) 7px var(--c3, 1fr); min-height: 0; position: relative; container-type: inline-size; }
+  .divider { cursor: col-resize; position: relative; }
+  .divider::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 1px; background: var(--rule); transition: background .15s; }
+  .divider:hover::after, .divider.drag::after { background: var(--focus); }
+  body.resizing { cursor: col-resize; -webkit-user-select: none; }
+  .col { overflow-y: auto; padding: .4rem .55rem 2.5rem; min-width: 0; }
+  .cols { padding: 0 1.45rem; }
+  /* each section is a soft card: the light catches its top edge */
+  .col section { background: var(--card); border: 1px solid var(--card-edge); border-radius: var(--radius-card);
+    padding: 1.05rem 1.15rem 1.1rem; }   /* no shadow around a card: it floats on the background, clean */
+  .col section + section { margin-top: 1.15rem; }
+
+  .divider::after { background: transparent; }
+
+  /* any window size: 3 columns → 2 → 1. Break points are in rem, so a bigger
+     text size reflows sooner. The header stays on top; only the columns scroll. */
+  .inner { display: contents; }
+  @container (max-width: 76rem) {
+    .inner { display: grid; grid-template-columns: 1fr 1fr; overflow-y: auto; height: 100%; grid-column: 1 / -1; align-content: start; }
+    .divider { display: none; }
+    #right { grid-column: 1 / -1; }
+    .col { overflow: visible; padding: .4rem .55rem 1.2rem; }
+  }
+  @container (max-width: 46rem) {
+    .inner { grid-template-columns: 1fr; }
+
+  }
+  @media (max-width: 52rem) {
+    .brief { padding: 1rem 1.4rem .9rem; gap: 1rem; }
+    .line { font-size: 1.2rem; }
+    .time { font-size: 1.6rem; } .date { display: none; }
+  }
+  /* scrollbars stay out of sight until you're in that column, then thin and soft */
+  .col::-webkit-scrollbar { width: 6px; } .col::-webkit-scrollbar-track { background: transparent; }
+  .col::-webkit-scrollbar-thumb { background: transparent; border-radius: 6px; }
+  .col:hover::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ink) 22%, transparent); }
+  /* cards drift in and out at a column's edges instead of being cut */
+  .col { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 .9rem, #000 calc(100% - 2.2rem), transparent 100%);
+         mask-image: linear-gradient(to bottom, transparent 0, #000 .9rem, #000 calc(100% - 2.2rem), transparent 100%); }
+  section + section { margin-top: 1rem; }
+  h2 { font: 600 var(--t-head)/1.3 var(--display); margin: 0 0 .7rem; display: flex; align-items: baseline; gap: .6rem; }
+  h2 .count { color: var(--ink-3); font-weight: 400; font-size: var(--t-small); }
+  h2 .right { margin-left: auto; font: 400 var(--t-small) var(--sans); color: var(--ink-3); }
+
+  /* a row: [mark] [what · why] [one action] */
+  .row { display: flex; gap: .8rem; align-items: center; padding: .6rem .55rem; margin: 0 -.55rem; border-radius: 10px; transition: background-color .12s; }
+  .row + .row { border-top: 1px solid var(--rule); }
+  .row .body { flex: 1; min-width: 0; }
+  .row .title { text-align: start; font-size: var(--t-body); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .row .why { font-size: var(--t-small); color: var(--ink-2); margin-top: .15rem; }
+  .row .meta { font-size: var(--t-meta); color: var(--ink-3); margin-top: .15rem; }
+  .row.click, .tl.click { cursor: pointer; }
+  .row.click:focus-visible, .tl.click:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; } .row.click:hover { background: var(--raise); }
+  .row.click:hover + .row, .row.click:hover { border-top-color: transparent; }
+  .row.quiet .title { color: var(--ink-2); }
+  .gap { gap: .9rem; display: inline-flex; }
+
+  /* systems: a status word, not a dot */
+  .sys { display: grid; grid-template-columns: 3px 1fr auto; gap: .8rem; padding: .65rem 0; }
+  .sys + .sys { border-top: 1px solid var(--rule); }
+  .sys .name { font-weight: 600; } .sys .state { font-size: var(--t-small); font-weight: 600; }
+  .sys .state.ok { color: var(--ink-3); font-weight: 500; }
+  .sysd { color: var(--ink-3); font-weight: 400; font-size: var(--t-small); margin-left: .3rem; }
+  .sline { font-size: var(--t-small); color: var(--ink-2); margin-top: .2rem; }
+  .sline b { font-weight: 600; color: var(--ink); }
+  .sys.calm { padding: .45rem 0; } .sys.calm .sline { margin-top: .05rem; }
+  .is-live { color: var(--focus); }
+  .sub-h { font-size: var(--t-small); color: var(--ink-2); font-weight: 600; margin: .9rem 0 .2rem; }
+  .sub-h:first-of-type { margin-top: .2rem; }
+  .mark.go-mark { background: var(--focus); }
+  .tabdot { display: inline-block; width: .4rem; height: .4rem; border-radius: 50%; background: var(--amber); vertical-align: .1rem; margin-left: .15rem; }
+  .pulse { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: var(--focus); margin-right: .45rem; vertical-align: .05rem; animation: breathe 1.6s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .25; } }
+
+  .tiny { font-size: var(--t-small); color: var(--ink-3); padding: .4rem 0; }
+  .tiny a, .link { color: var(--ink-2); cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+  .tiny a:hover, .link:hover { color: var(--ink); }
+  .empty { color: var(--ink-3); padding: .3rem 0; }
+  .icon { border: 0; background: transparent; color: var(--ink-3); cursor: pointer; border-radius: 6px; min-width: 1.6rem; min-height: 1.6rem; padding: .2rem .35rem; font-size: var(--t-body); line-height: 1; }
+  .icon:hover { background: var(--raise); color: var(--ink); } .icon.on { color: var(--amber); }
+  /* your colour for an issue: three small dots, the chosen one filled */
+  .levels { display: inline-flex; gap: 0; padding: 0 .15rem; border-radius: 99px; background: var(--raise); }
+  .lv { width: 1.5rem; height: 1.5rem; border: 0; background: transparent; padding: 0; cursor: pointer; display: grid; place-items: center; }
+  .lv::before { content: ""; width: .75rem; height: .75rem; border-radius: 50%; border: 1.5px solid currentColor; opacity: .75; }
+  .lv:hover::before, .lv.on::before { opacity: 1; } .lv.on::before { background: currentColor; }
+  .lv-red { color: var(--red); } .lv-amber { color: var(--amber); } .lv-green { color: var(--go); }
+  /* a technology issue: its controls sit beside the title, and the meta line runs
+     under them at full width (it wrapped to three lines in a narrow body) */
+  .row.issue { display: grid; grid-template-columns: 3px minmax(0, 1fr) auto; gap: 0 .8rem; align-items: center; }
+  .row.issue .mark { grid-row: 1 / span 2; } .row.issue .meta { grid-column: 2 / 4; margin-top: .1rem; }
+  .ctl { display: inline-flex; align-items: center; gap: .5rem; }
+  .nw { white-space: nowrap; }
+  .row .icon[data-mute] { opacity: 0; } .row:hover .icon[data-mute], .row .icon[data-mute]:focus-visible { opacity: 1; }
+
+  /* inline filters for "All issues" */
+  .filters { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: 0 0 .7rem; }
+  .fsel, .fsearch { background: var(--raise); color: var(--ink); border: 1px solid var(--rule); border-radius: 7px;
+    font: inherit; font-size: var(--t-small); padding: .22rem .5rem; -webkit-user-select: text; }
+  .fsel.set { border-color: var(--focus); color: var(--focus); }
+  .fsearch { width: 9rem; } .fsearch:focus { outline: none; border-color: var(--focus); }
+  .fcount { color: var(--ink-3); font-size: var(--t-small); margin-left: auto; }
+  .prio { font-size: var(--t-meta); font-weight: 650; margin-right: .45rem; }
+
+  /* reviews: one row per teammate */
+  .who { font-weight: 600; } .open .chev { transform: rotate(90deg); }
+  .chev { display: inline-block; color: var(--ink-3); transition: transform .12s; margin-right: .2rem; }
+  .sublist { margin: .2rem 0 .4rem 1.1rem; }
+  .sublist .row { padding: .45rem 0; }
+
+  /* day panel */
+  /* a Mac segmented control: the chosen segment is a raised pill */
+  .switch { display: inline-flex; background: var(--raise); border-radius: 9px; padding: 2px; margin-left: auto; }
+  .switch button { border: 0; background: transparent; color: var(--ink-2); padding: .2rem .7rem; border-radius: 7px; font-size: var(--t-small); cursor: pointer; transition: background-color .15s, color .15s; }
+  .switch button:hover { color: var(--ink); }
+  .switch button.on { background: var(--switch-on); color: var(--ink); font-weight: 500; box-shadow: inset 0 1px 0 var(--card-hi); }
+  .note { font-size: var(--t-small); color: var(--ink-2); margin: -.2rem 0 .9rem; }
+  .glance { display: grid; grid-template-columns: 7rem 1fr; gap: .35rem .8rem; font-size: var(--t-small); margin: 0 0 1rem; padding: .75rem .9rem; background: var(--raise); border-radius: 12px; }
+  .glance .g-k { color: var(--ink-3); } .glance .g-v { color: var(--ink); }
+  .modenote { font-size: var(--t-meta); color: var(--ink-3); margin: -.35rem 0 .7rem; }
+  ol.spoken { list-style: none; padding: 0; margin: 0; counter-reset: n; }
+  ol.spoken li { counter-increment: n; display: grid; grid-template-columns: 1.6rem 1fr; padding: .7rem 0; border-top: 1px solid var(--rule); }
+  ol.spoken li::before { content: counter(n); color: var(--ink-3); font-variant-numeric: tabular-nums; font-size: var(--t-small); padding-top: .1rem; }
+  ol.spoken .hd { font-size: var(--t-body); line-height: 1.4; } ol.spoken .dt { color: var(--ink-3); font-size: var(--t-small); margin-top: .25rem; }
+  .tl { display: grid; grid-template-columns: 3.4rem 5.4rem 1fr; gap: .2rem .6rem; padding: .55rem 0; border-top: 1px solid var(--rule); align-items: baseline; }
+  .tl .at { color: var(--ink-3); font-size: var(--t-small); } .tl .k { color: var(--ink-2); font-weight: 500; font-size: var(--t-small); }
+  .tl.up .k { color: var(--focus); } .tl-gap { height: .9rem; }
+  .tl .tx { font-size: var(--t-body); } .tl .rf { grid-column: 3; color: var(--ink-3); font-size: var(--t-meta); }
+  .toast { position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%); background: var(--toast); color: var(--ink); padding: .6rem 1.05rem; border-radius: 14px;
+    border: 1px solid var(--card-edge); box-shadow: var(--shadow); -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6); font-size: var(--t-small); opacity: 0; transition: opacity .2s; pointer-events: none; display: flex; gap: .9rem; align-items: center; }
+  .toast.show { opacity: 1; pointer-events: auto; }
+  .toast .undo { color: var(--focus); cursor: pointer; font-weight: 600; border: 0; background: transparent; padding: .1rem .3rem; border-radius: 5px; }
+  /* a red mark pulses once, when it is new — not on every redraw */
+  @keyframes once { from { box-shadow: 0 0 0 0 rgba(255,107,94,.5); } to { box-shadow: 0 0 0 10px rgba(255,107,94,0); } }
+  .mark.red.fresh { animation: once 1.2s ease-out 1; }
+  .pulse { animation-iteration-count: 6; }
+</style>
+</head>
+<body>
+  <header class="brief">
+    <div><div class="lead"><div class="line" id="line">Loading…</div><button class="act red" id="lineAct" hidden></button></div><div class="sub" id="sub"></div></div>
+    <div class="side">
+      <div class="clockrow">
+        <button class="act ghost proxy" data-do="proxy" id="proxyBtn" hidden></button>
+        <button class="act ghost refresh" data-do="refresh" id="refreshBtn" title="Refresh all data now (⌘⇧R)"><span class="spin">↻</span><span id="refreshLabel">Refresh</span></button>
+        <div class="time num" id="time"></div>
+      </div>
+      <div class="date" id="date"></div>
+      <div class="tools">
+        <button class="act ghost" data-do="tools" title="Quick tools (⌥⌘K)">Tools</button>
+        <button class="act ghost" data-do="hide" title="Blur names and titles (⌘⇧H)" id="hideBtn">Hide</button>
+        <button class="act ghost" data-do="windowMode" id="modeBtn" title="Switch between full screen and a resizable window (⌃⌘F)">Exit full screen</button>
+        <button class="act ghost" data-do="settings" title="Settings (⌘,)">Settings</button>
+      </div>
+    </div>
+  </header>
+  <main class="cols"><div class="inner">
+    <div class="col" id="left"></div>
+    <div class="divider" data-split="0" title="Drag to resize · double-click to reset"></div>
+    <div class="col" id="mid"></div>
+    <div class="divider" data-split="1" title="Drag to resize · double-click to reset"></div>
+    <div class="col" id="right"></div>
+  </div></main>
+  <div class="toast" id="toast" role="status"></div>
+
+<script src="core.js"></script>
+<script src="tools.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const toast = (t, undo) => {
+  const el = $("toast"); el.innerHTML = `<span>${h(t)}</span>${undo ? `<button class="undo">Undo</button>` : ""}`;
+  el._undo = undo; el.classList.add("show"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), undo ? 5000 : 1800);
+};
+
+// Write to the page only when it differs: an identical innerHTML still rebuilds every
+// node and pays style, layout and paint, and most pushes change nothing on screen.
+const setHTML = (el, html) => { if (el._html === html) return false; el._html = html; el.innerHTML = html; return true; };
+const setText = (el, t) => { if (el.textContent !== t) el.textContent = t; };
+
+// ── header ──────────────────────────────────────────────────────────────────
+let refreshing = 0;   // when you pressed Refresh; cleared when fresh data lands
+const lastUpdate = () => Math.max(0, ...Object.values(WD.updated || {}).map(Number).filter(Boolean));
+function renderHeader() {
+  const b = current || briefing();
+  setText($("line"), b.line);
+  $("line").className = "line " + (b.level === "clear" ? "" : b.level);
+  $("line").classList.toggle("private", b.alerts[0]?.private === true);
+  // the alert the line is about: an expired login gets its Sign in right here
+  const lead = b.alerts.find((x) => x.level === b.level), act = $("lineAct");
+  act.hidden = !lead?.signin;
+  if (lead?.signin) {
+    act.dataset.signin = lead.signin;
+    act.disabled = !!signingIn && lead.signin === "Google Cloud";
+    setText(act, act.disabled ? "Signing in…" : "Sign in");
+    act.title = `Opens the terminal and runs: ${lead.fix}`;
+  }
+  const m = meetings(), st = nextStandup(), sub = [];
+  if (m.current) sub.push(`In <b class="private">${h(m.current.title)}</b> until ${clock(m.current.e)}`);
+  if (m.current?.link) sub[sub.length - 1] += ` <button class="act amber" data-url="${h(m.current.link)}">Join</button>`;
+  if (m.next) {
+    const mins = (m.next.s - Date.now()) / 60000, soon = mins <= 10;
+    const join = m.next.link ? (soon ? ` <button class="act amber" data-url="${h(m.next.link)}">Join</button>` : ` <span class="link" data-url="${h(m.next.link)}">Join</span>`) : "";
+    sub.push(`Next: <b class="private">${h(m.next.title)}</b>${m.next.tentative ? " (tentative)" : ""} at ${clock(m.next.s)}, in ${span(mins)}${join}`);
+  }
+  else if (!m.error && m.list.length) sub.push("No more meetings today");
+  if (m.error === "no-access") sub.push(`<span class="link" data-do="settings">Allow calendar access to see meetings</span>`);
+  if (st) sub.push(st.inMinutes <= 0 ? "Standup now" : st.day === 0 ? `Standup in ${span(st.inMinutes)}` : `Standup ${st.day === 1 ? "tomorrow" : "on " + fmt("en-GB", { weekday: "long" }).format(new Date(Date.now() + st.day * 86400000))} at ${st.at}`);
+  if (setHTML($("sub"), sub.map((s) => `<span>${s}</span>`).join(""))) focusable($("sub"));
+  const now = new Date();
+  setText($("time"), clock(now));
+  const lu = lastUpdate();
+  // when the data last refreshed: amber once nothing has arrived for 5 minutes
+  const stale = lu && Date.now() - lu > 5 * 60000;
+  setHTML($("date"), h(fmt("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(now))
+    + (lu ? `, <span class="${stale ? "is-amber" : ""}" title="${h(fmt("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(lu)))}">updated ${ago(lu)}</span>` : ""));
+  renderProxy();
+  $("refreshBtn").classList.toggle("busy", !!refreshing);
+  setText($("refreshLabel"), refreshing ? "Refreshing…" : "Refresh");
+  setText($("hideBtn"), WD.state.hidden ? "Hidden" : "Hide");
+  $("hideBtn").classList.toggle("amber", !!WD.state.hidden);
+}
+// links drawn as <span>/<a> without href: reachable by Tab, opened by ↩ like a link
+function focusable(root) {
+  root.querySelectorAll("span.link, a.link, .tiny a, a[data-url], a[data-copy], a[data-do]").forEach((el) => {
+    el.tabIndex = 0; el.setAttribute("role", el.dataset.url ? "link" : "button");
+  });
+}
+
+// DB proxy, beside Refresh: green when every read port is listening, amber when
+// some aren't, red "Start" when the proxy is off. Hover lists each port.
+let proxyBusy = 0, proxyJustUp = 0;   // when a start began · when it was confirmed running
+let signingIn = 0;                    // when a Sign in opened the terminal
+function proxyState() {
+  const lc = WD.data.local, ports = lc?.proxy?.ports || [];
+  if (!lc || !ports.length) return null;
+  const read = ports.filter((p) => p.role === "read"), down = read.filter((p) => !p.up);
+  const google = (lc.logins || []).find((l) => l.name === "Google Cloud");
+  const state = !lc.proxy.running ? "off" : down.length ? "part" : "up";
+  const tip = ports.filter((p) => p.role !== "never").map((p) => `${p.up ? "●" : "○"} ${p.port} ${p.name}`).join("\n")
+    + (google && !google.ok ? "\n\nGoogle login expired — run: gcloud auth login" : "");
+  return { state, down, tip, loginExpired: google && !google.ok };
+}
+function renderProxy() {
+  const b = $("proxyBtn"), p = proxyState();
+  if (!p) { b.hidden = true; return; }
+  b.hidden = false;
+  const fresh = proxyJustUp && Date.now() - proxyJustUp < 15000;
+  b.className = `act ghost proxy ${p.state}${proxyBusy ? " busy" : ""}${fresh ? " fresh" : ""}`;
+  b.title = (p.state === "off" ? (p.loginExpired ? "Google login expired — click to sign in and start the proxy\n\n" : "DB proxy is off — click to start it\n\n") : "Click to check again\n\n") + p.tip;
+  const read = (WD.data.local?.proxy?.ports || []).filter((x) => x.role === "read");
+  if (signingIn) b.title = "Finish signing in in your browser — the proxy starts right after";
+  setHTML(b, `<span class="dot"></span>${signingIn ? "Signing in… finish in your browser" : proxyBusy ? "Starting DB proxy…" : fresh ? `DB proxy running · ${read.length - p.down.length} of ${read.length} ports open` : p.state === "off" ? (p.loginExpired ? "DB proxy off · login expired" : "Start DB proxy") : p.state === "part" ? `DB proxy · ${p.down.length} down` : "DB proxy"}`);
+}
+async function proxyAction() {
+  const p = proxyState();
+  if (!p || proxyBusy || signingIn) return;
+  if (p.state === "off" && p.loginExpired) return signIn("Google Cloud");
+  const starting = p.state !== "up";
+  if (starting) { proxyBusy = Date.now(); renderProxy(); }
+  try {
+    const r = await WD.bridge({ cmd: "proxy", action: starting ? "start" : "check" });
+    if (starting && r && !r.ok) { proxyBusy = 0; renderProxy(); toast(r.said || "Couldn't start the DB proxy"); return; }
+    if (!starting) toast("Checking the DB proxy…");
+  } catch (e) { proxyBusy = 0; renderProxy(); toast("Couldn't reach the DB proxy helper"); return; }
+  // not done until the ports are really listening: give it 30 s, then say so
+  if (starting) setTimeout(() => {
+    if (!proxyBusy) return;
+    proxyBusy = 0; renderProxy();
+    const log = WD.config.dbProxy?.log;
+    toast(`The DB proxy didn't come up — ${log ? `see ${log}` : "check the proxy's log"}`);
+  }, 30000);
+}
+// An expired login, in one click: the app opens your terminal and runs the login's
+// fix (for Google Cloud: gcloud auth login, then your proxy start command); you only
+// choose your account in the browser. If the app can't, the fix is copied instead.
+async function signIn(name) {
+  const fix = (WD.data.local?.logins || []).find((l) => l.name === name)?.fix || "";
+  let opened = false;
+  try { opened = await WD.bridge({ cmd: "signIn", name }); } catch (e) {}
+  if (!opened) {
+    if (fix) WD.copy(fix).then(() => toast(`Couldn't open the terminal — the fix is copied, paste it in Terminal`));
+    else toast(`${name} is signed in now — the next check clears this`);   // the page was a step behind
+    return;
+  }
+  toast(`Opening the terminal — sign in to ${name} in your browser`);
+  if (name !== "Google Cloud") return;
+  signingIn = Date.now(); renderProxy(); renderHeader();
+  setTimeout(() => { if (signingIn) { signingIn = 0; renderProxy(); renderHeader(); } }, 240000);
+}
+// each fresh look at local state: a sign-in is done once the login is good, and a
+// start in progress is confirmed once the proxy is running
+WD.on((kind, name) => {
+  if (kind !== "data" || name !== "local") return;
+  if (signingIn && (WD.data.local?.logins || []).find((l) => l.name === "Google Cloud")?.ok === true) {
+    signingIn = 0;
+    if (WD.config.dbProxy?.startCommand) {
+      proxyBusy = Date.now();
+      setTimeout(() => { if (proxyBusy) { proxyBusy = 0; renderProxy(); toast("Signed in, but the DB proxy didn't come up — click it to start"); } }, 30000);
+    } else toast("Signed in to Google Cloud");
+    renderProxy();
+  }
+  if (!proxyBusy) return;
+  const p = proxyState();
+  if (p && p.state !== "off") {
+    proxyBusy = 0; proxyJustUp = Date.now(); renderProxy();
+    toast(p.state === "up" ? "DB proxy is running — all database ports are open" : `DB proxy is running, but ${plural(p.down.length, "port")} not open yet`);
+    setTimeout(renderProxy, 15500);
+  }
+});
+
+// ── left: systems, connections, technology issues ───────────────────────────
+// Pods, in one clear line: how many are up, and anything moving.
+function podsLine(p) {
+  if (!p) return "";
+  // an expired Google login is the usual cause: say so plainly, with Sign in beside it
+  if (p.error && /login expired/i.test(p.error)) return `<span class="is-amber">Pods unreadable — Google login expired.</span> <span class="link" data-signin="Google Cloud">Sign in</span>`;
+  if (p.error) return `<span class="is-amber">Pods unreadable — ${h(p.error)}</span>`;
+  if (!p.total) return "No pods found";
+  const bits = [`<b class="${p.ready < p.total ? "is-amber" : ""}">${p.ready} of ${p.total}</b> pods ready`];
+  if (p.rollingOut) bits.push(`<span class="is-live">${p.rollingOut} new pod${p.rollingOut === 1 ? "" : "s"} starting</span>`);
+  bits.push(p.restartsToday ? `${plural(p.restartsToday, "pod")} restarted today` : "no restarts today");
+  return bits.join(", ");
+}
+// Release: deploying now → a release PR waiting → the last release.
+function releaseLine(r, dep) {
+  if (!r) return dep?.at ? `<div class="sline">Deployed ${ago(dep.at)}</div>` : "";
+  const out = [];
+  if (r.running) {
+    const what = r.running.status === "in_progress" ? "Deploying now" : r.running.status === "waiting" ? "Deploy waiting for approval" : `Deploy ${r.running.status}`;
+    out.push(`<div class="sline is-live"><span class="pulse"></span>${what}${r.running.pr ? ` (#${h(r.running.pr)})` : ""}, started ${ago(r.running.since)} <span class="link" data-url="${h(r.running.url)}">Watch</span></div>`);
+  }
+  if (r.pending) out.push(`<div class="sline">Release PR <span class="link" data-url="${h(r.pending.url)}">#${r.pending.number}</span> open ${span(minsSince(r.pending.since))}, not merged to main yet</div>`);
+  if (r.last) out.push(`<div class="sline">Last release ${ago(r.last.at)}${r.last.pr ? `: <span class="link" data-url="https://github.com/${h(WD.config.github?.org || "")}/${h(r.repo)}/pull/${h(r.last.pr)}">${h(r.repo)} #${h(r.last.pr)}</span>` : ""}</div>`);
+  return out.join("");
+}
+const STATE_WORD = { ok: ["Normal", "ok"], warn: ["Degraded", "is-amber"], down: ["Down", "is-red"], unknown: ["Unknown", "is-quiet"] };
+function renderLeft() {
+  const hd = WD.data.health, out = [];
+  // systems: All (default) · Backends · Frontends — a dot on a tab when something there needs a look
+  const view = ["backend", "frontend"].includes(WD.state.systemsView) ? WD.state.systemsView : "all";
+  const all = hd?.systems || [], kindOf = (s) => s.kind || "backend";
+  const bad = (k) => all.some((s) => kindOf(s) === k && s.status !== "ok");
+  const hasFront = all.some((s) => kindOf(s) === "frontend");
+  const tab = (v, label, dot) => `<button data-sysview="${v}" class="${view === v ? "on" : ""}">${label}${dot && view !== v ? ` <span class="tabdot"></span>` : ""}</button>`;
+  out.push(`<section><h2>Systems ${hasFront ? `<span class="switch">${tab("all", "All")}${tab("backend", "Backends", bad("backend"))}${tab("frontend", "Frontends", bad("frontend"))}</span>` : ""}</h2>`);
+  if (hd?.checkedAt) out.push(`<div class="modenote">Checked ${ago(hd.checkedAt)}</div>`);
+  if (!hd) out.push(`<div class="empty">Checking…</div>`);
+  else if (hd.error) out.push(`<div class="empty ${hd.offline ? "" : "is-red"}">${h(hd.error)}</div>`);
+  let investigable = false;
+  for (const s of all.filter((x) => view === "all" || kindOf(x) === view)) {
+    const [word, cls] = STATE_WORD[s.status] || STATE_WORD.unknown;
+    const mark = s.status === "down" ? "red" : s.status === "warn" ? "amber" : "";
+    const live = s.live ? (s.live.build ? `live build ${h(s.live.version ? `${s.live.version} · ` : "")}${h(s.live.build)}${s.live.current ? "" : ` <span class="is-amber">not the last deploy</span>`}` : "") : "";
+    const calm = s.status === "ok" && !s.release?.running && !s.release?.pending && !(s.pods && (s.pods.error || s.pods.ready < s.pods.total || s.pods.rollingOut || s.pods.restartsToday));
+    if (calm) {   // dark cockpit: a healthy system is one quiet line
+      const p = s.pods, last = s.release?.last;
+      const bits = [p?.total ? `${p.ready}/${p.total} pods` : live, last ? `released ${ago(last.at)}${last.pr ? ` <span class="link" data-url="https://github.com/${h(WD.config.github?.org || "")}/${h(s.release.repo)}/pull/${h(last.pr)}">#${h(last.pr)}</span>` : ""}` : s.deploy?.at ? `deployed ${ago(s.deploy.at)}` : ""].filter(Boolean);
+      out.push(`<div class="sys calm"><span class="mark"></span><div><div class="name">${h(s.name)} <span class="sysd">${h(s.detail || "")}</span></div>${bits.length ? `<div class="sline">${bits.map((b) => `<span class="nw">${b}</span>`).join(" · ")}</div>` : ""}</div><div class="state ${cls}">${word}</div></div>`);
+      continue;
+    }
+    out.push(`<div class="sys"><span class="mark ${mark} ${mark === "red" ? freshMark(`sys.${s.name}`) : ""}"></span>
+      <div><div class="name">${h(s.name)} <span class="sysd">${h(s.detail || "")}</span></div>
+        ${s.status !== "ok" ? s.reasons.map((r) => `<div class="sline" style="color:var(--ink)">${h(r.text)}${r.url ? ` <span class="link" data-url="${h(r.url)}">Open</span>` : ""}</div>`).join("") : ""}
+        ${s.pods?.total || s.pods?.error ? `<div class="sline">${podsLine(s.pods)}</div>` : live ? `<div class="sline">${live}</div>` : ""}
+        ${releaseLine(s.release, s.deploy)}
+        ${s.status === "ok" ? "" : `<div class="sline"><button class="act ${mark === "red" ? "red" : ""}" data-investigate="${h(systemSubject(s))}" title="Opens Terminal and starts Claude's incident investigation with these details">Investigate</button></div>`}</div>
+      <div class="state ${cls}">${word}${s.status === "warn" && s.release?.running ? `<div class="sline" style="font-weight:400">while deploying</div>` : ""}</div></div>`);
+  }
+  for (const i of hd?.incidents || []) {
+    investigable = true;
+    out.push(`<div class="row click" data-url="${h(i.url)}"><span class="mark red ${freshMark(`inc.${i.name}`)}"></span><div class="body"><div class="title is-red">Incident: ${h(i.name)}</div><div class="why">${h(i.cause || "")}${i.cause ? ", " : ""}started ${ago(i.started)}</div></div>
+      <button class="act red" data-investigate="${h(incidentSubject(i))}" title="Opens Terminal and starts Claude's incident investigation with these details">Investigate</button><button class="act ghost" data-url="${h(i.url)}">Open</button></div>`);
+  }
+  if (investigable || all.some((s) => s.status !== "ok" && (view === "all" || kindOf(s) === view)))
+    out.push(`<div class="tiny">Investigate runs Claude's read-only <b style="color:var(--ink-2);white-space:nowrap">${h(WD.config.incidents?.command || "/incident-investigation")}</b> in Terminal.</div>`);
+  if (hd && !hd.betterstack) out.push(`<div class="tiny">Uptime is checked directly. <a data-do="settings">Add a Better Stack key</a> to include its monitors and incidents.</div>`);
+  out.push(`</section>`);
+
+  // connections — only what is wrong, plus standing notes
+  const lc = WD.data.local;
+  if (lc && WD.config.showConnections !== false) {
+    const bad = (lc.logins || []).filter((l) => !l.ok);
+    const notes = [];
+    for (const l of bad) notes.push(`<div class="row"><span class="mark red"></span><div class="body"><div class="title is-red">${h(l.name)} login expired</div><div class="why">${h(l.detail)}</div></div><button class="act red" data-signin="${h(l.name)}" title="Opens the terminal and runs: ${h(l.fix)}">Sign in</button></div>`);
+    if (lc.kube?.prod && WD.config.kubeProdReminder !== false) notes.push(`<div class="tiny" title="${h(lc.kube.context)}">Reminder: kubectl in your terminal is set to the <b style="color:var(--ink-2)">production</b> cluster, so any kubectl command you type goes to production. Nothing is wrong; the dashboard only reads.</div>`);
+    const proxyNeeded = (lc.proxy?.ports || []).some((p) => p.role === "read");
+    const startCmd = WD.config.dbProxy?.startCommand;
+    if (proxyNeeded && !lc.proxy.running) notes.push(`<div class="tiny">Database proxy is off.${startCmd ? ` <a data-copy="${h(startCmd)}">Copy the start command</a>` : ""}</div>`);
+    if (notes.length) out.push(`<section><h2>Connections</h2>${notes.join("")}</section>`);
+  }
+
+  // technology issues
+  const bc = WD.data.basecamp;
+  const label = WD.config.basecamp?.issues?.label || "Issues";
+  const muted = WD.state.muted || {};
+  const order = { red: 0, amber: 1, green: 2 };
+  const every = techItems();
+  const issues = every.filter((i) => !muted[i.id]).sort((a, b) => order[issueLevel(a)] - order[issueLevel(b)] || String(b.updated).localeCompare(String(a.updated)));
+  const mutedCount = every.filter((i) => muted[i.id]).length;
+  out.push(`<section><h2>${h(label)} <span class="count">${issues.length ? issues.length + " open" : ""}</span></h2>${bc?.checkedAt ? `<div class="modenote">Checked ${ago(bc.checkedAt)}</div>` : ""}`);
+  if (!bc) out.push(`<div class="empty">Checking…</div>`);
+  else if (bc.error) out.push(`<div class="empty ${bc.offline ? "" : "is-red"}">${h(bc.error)}</div>`);
+  else if (!issues.length) out.push(`<div class="empty">No open issues${mutedCount ? ` (${mutedCount} hidden)` : ""}.</div>`);
+  for (const i of issues) {
+    const mine = issueLevel(i), lvl = mine === "green" ? "" : mine;
+    const bits = [i.priority !== "normal" && !/priority/i.test(i.why) && `${cap(i.priority)} priority`, `opened ${ago(i.created)}`, i.lastBy && `last reply from ${i.lastBy === "us" ? "us" : "the requester"}`, i.assignedToMe && "assigned to you",
+         i.mentions.length && `${list([...new Set(i.mentions)])} (unread)`].filter(Boolean);
+    out.push(`<div class="row click issue ${mine === "green" ? "quiet" : ""}" data-url="${h(i.url)}"><span class="mark ${lvl} ${lvl === "red" ? freshMark(i.id) : ""}"></span>
+      <div class="body"><div class="title private" dir="auto">${h(i.title)}</div>
+        ${i.why ? `<div class="why">${h(i.why)}</div>` : ""}</div>
+      <span class="ctl"><span class="levels" title="Your colour for this issue">${["red", "amber", "green"].map((l) => `<button class="lv lv-${l} ${mine === l ? "on" : ""}" data-level="${l}" data-issue="${h(i.id)}"
+        title="${{ red: "Red — urgent for me: in the briefing, menu bar and notifications", amber: "Yellow — keep an eye on it (every issue starts here)", green: "Green — fine, not important for me" }[l]}"></button>`).join("")}</span>
+      <button class="icon" data-mute="${h(i.id)}" title="Hide it from this list">✕</button>
+      <button class="act ${lvl === "red" ? "red" : ""}" data-url="${h(i.url)}">Open</button></span>
+      <div class="meta">${bits.map(h).join(", ")}</div></div>`);
+  }
+  if (mutedCount && issues.length) out.push(`<div class="tiny">${mutedCount} hidden. <a data-do="unmute">Show them</a></div>`);
+  const bits = [];
+  if (bc?.errors) {
+    const e = bc.errors, spike = e.last24h >= 6 && e.lastHour > 2 * (e.last24h / 24);
+    bits.push(e.last24h === 0 ? `<div class="tiny">${h(e.label)}: no prod errors in the last 24 hours.</div>`
+      : `<div class="tiny ${spike ? "is-amber" : ""}">${h(e.label)}: ${e.lastHour} in the last hour, ${e.last24h} in 24 hours${e.top?.[0] ? ` — mostly ${h(e.top[0].title.toLowerCase())}` : ""}. <a data-url="${h(e.url)}">Open</a></div>`);
+  }
+  out.push(bits.join(""));
+  // what was said to you: unread mentions and private chats
+  const msgs = basecampMessages();
+  out.push(`</section><section><h2>Mentions and pings <span class="count">${msgs.length ? `${msgs.length} unread` : ""}</span></h2>`);
+  if (!bc) out.push(`<div class="empty">Checking…</div>`);
+  else if (bc.inbox?.error) out.push(`<div class="empty is-amber">${h(bc.inbox.error)}</div>`);
+  else if (bc && !msgs.length) out.push(`<div class="empty">Nobody is waiting on you in Basecamp.</div>`);
+  for (const m of msgs.slice(0, 8)) {
+    const head = m.kind === "ping" ? `${h(m.who || "Someone")} <span style="color:var(--ink-3);font-weight:400">wrote to you</span>` : `<span style="color:var(--ink-3);font-weight:400">Mentioned you in</span> ${h(m.where || "")}`;
+    out.push(`<div class="row click" data-url="${h(m.url)}"><span class="mark ${m.kind === "ping" ? "amber" : ""}"></span>
+      <div class="body"><div class="title private">${head}</div>
+        ${m.excerpt ? `<div class="why private" dir="auto">${h(m.excerpt)}</div>` : ""}
+        <div class="meta">${ago(m.at)}${m.count > 1 ? `, ${m.count} unread` : ""}</div></div>
+      <button class="act ${m.kind === "ping" ? "amber" : ""}" data-url="${h(m.url)}">${m.kind === "ping" ? "Reply" : "Open"}</button></div>`);
+  }
+  if (msgs.length > 8) out.push(`<div class="tiny">${plural(msgs.length - 8, "more")} in your Basecamp inbox.</div>`);
+  out.push(`</section>`);
+  return setHTML($("left"), out.join(""));
+}
+
+// ── middle: your work, reviews, releases ────────────────────────────────────
+// "[Security] Stop public listing" → a quiet tag, then the title
+const tagged = (t) => { const m = String(t).match(/^\[([^\]]{1,24})\]\s*(.*)$/); return m ? `<span style="color:var(--ink-3);font-size:var(--t-small);margin-right:.4rem">${h(m[1])}</span>${h(m[2])}` : h(t); };
+const ACTION_LABEL = { merged: "Open PR", ci: "Fix CI", changes: "Address changes", reply: "Reply", read: "Read comments", merge: "Merge", nudge: "Nudge", noreviewer: "Request review", nopr: "Open issue", draft: "Open", wait: "Open" };
+function renderMid() {
+  const out = [], w = workstreams();
+  const gh = WD.data.github, lin = WD.data.linear;
+  const view = WD.state.workView === "all" ? "all" : "focus";
+  const wsw = `<span class="switch"><button data-work="focus" class="${view === "focus" ? "on" : ""}">Focus</button><button data-work="all" class="${view === "all" ? "on" : ""}">All issues${lin?.all ? ` ${lin.all.length}` : ""}</button></span>`;
+  if (view === "all") { out.push(renderAllIssues(wsw, w)); return finishMid(out); }
+  out.push(`<section><h2>Your work${wsw}</h2>`);
+  if (!gh && !lin) out.push(`<div class="empty">Checking…</div>`);
+  if (gh?.error) out.push(`<div class="empty is-red">${h(gh.error)}</div>`);
+  if (lin?.error) out.push(`<div class="empty is-red">${h(lin.error)}</div>`);
+  // Now: the 2–3 Linear issues you'd pick up first (In Progress, then priority),
+  // each with what its PR needs, if it has one
+  const top = nowIssues().slice(0, 3), topIds = new Set(top.map((i) => i.id));
+  const streamOf = {}; for (const s of w.streams) for (const i of s.issues) streamOf[i.id] = s;
+  if (top.length) {
+    out.push(`<div class="sub-h">Now</div>`);
+    for (const i of top) {
+      const s = streamOf[i.id], a = s?.prs.length ? s.action : null, lvl = a ? ({ red: "red", amber: "amber", go: "go" }[a.level] || "") : "";
+      const [pl, pc] = PRIO[i.priority || 0];
+      const sess = s?.sessions?.[0] || (WD.data.sessions?.sessions || []).find((x) => x.keys.includes(i.id));
+      const url = a ? s.prs[0].url : i.url;
+      out.push(`<div class="row click" data-url="${h(i.url)}"><span class="mark ${i.priority === 1 ? "red" : i.stateType === "started" ? "go-mark" : ""}"></span>
+        <div class="body"><div class="title private" dir="auto">${i.priority && i.priority <= 2 ? `<span class="prio ${pc}">${pl}</span>` : ""}${tagged(i.title)}</div>
+          <div class="why ${lvl ? "is-" + lvl : ""}">${h(a ? a.text : i.stateType === "started" ? `${i.state}, no PR yet` : `${i.state}${i.priority ? ` · ${pl} priority` : ""}`)}</div>
+          <div class="meta">${h([i.id, i.project, `updated ${ago(i.updated)}`].filter(Boolean).join(", "))}${sess ? `, Claude ${ago(sess.last)} <a class="link" data-copy="${h(sess.resume)}" title="Copy the resume command">resume</a>` : ""}</div></div>
+        <button class="act ${lvl}" data-url="${h(url)}">${a ? ACTION_LABEL[a.kind] || "Open" : "Open issue"}</button></div>`);
+    }
+  }
+  const rest = w.streams.filter((s) => !s.issues.length || s.issues.some((i) => !topIds.has(i.id)));
+  if (top.length && rest.length) out.push(`<div class="sub-h">Pull requests and other work</div>`);
+  for (const s of rest) {
+    const a = s.action, lvl = { red: "red", amber: "amber", go: "go" }[a.level] || "";
+    const url = s.prs[0]?.url || s.issues[0]?.url;
+    const keys = s.issues.map((i) => i.id);
+    const refs = [keys.length > 2 ? `${keys[0]} and ${keys.length - 1} more` : keys.join(", "), ...s.prs.map((p) => `${p.repo} #${p.number}`)].filter(Boolean);
+    const sess = s.sessions[0];
+    out.push(`<div class="row click" data-url="${h(url)}"><span class="mark ${lvl === "go" ? "" : lvl}"></span>
+      <div class="body"><div class="title private" dir="auto">${tagged(s.title)}</div>
+        <div class="why ${lvl ? "is-" + lvl : ""}">${h(a.text)}</div>
+        <div class="meta">${h(refs.join(", "))}${sess ? `, Claude ${ago(sess.last)} <a class="link" data-copy="${h(sess.resume)}" title="Copy the resume command">resume</a>` : ""}</div></div>
+      ${a.kind === "wait" ? "" : `<button class="act ${lvl}" data-url="${h(url)}" title="${h(a.text)}">${ACTION_LABEL[a.kind] || "Open"}</button>`}</div>`);
+  }
+  for (const p of gh?.pushed || []) out.push(`<div class="row"><span class="mark"></span><div class="body"><div class="title">${h(p.branch)}</div><div class="why">Pushed ${ago(p.at)} to ${h(p.repo)}, no pull request yet</div></div><button class="act" data-url="${h(p.url)}">Open PR</button></div>`);
+  const next = w.next.filter((i) => !topIds.has(i.id));   // w is shared by this render: don't change it
+  if (next.length) out.push(`<div class="tiny">Next up: <a data-url="${h(next[0].url)}" class="private">${h(next[0].id)} ${h(next[0].title.replace(/^\[[^\]]+\]\s*/, ""))}</a>${next.length > 1 ? ` and ${next.length - 1} more` : ""}.</div>`);
+  if (w.loose.length) out.push(`<div class="tiny">Also open in Claude: ${w.loose.slice(0, 3).map((s) => `<a data-copy="${h(s.resume)}" title="Copy the resume command" class="private">${h(s.title)}</a>`).join(", ")}</div>`);
+  out.push(`</section>`);
+
+  return finishMid(out);
+}
+
+// ── every open issue assigned to you, with small inline filters ─────────────
+const PRIO = { 1: ["Urgent", "is-red"], 2: ["High", "is-amber"], 3: ["Medium", ""], 4: ["Low", ""], 0: ["No priority", ""] };
+function renderAllIssues(wsw, w) {
+  const lin = WD.data.linear, all = lin?.all || [];
+  const f = { team: "", priority: "", state: "open", project: "", q: "", ...(WD.state.workFilter || {}) };
+  const uniq = (xs) => [...new Set(xs.filter((x) => x != null && x !== ""))].sort();
+  const count = (pred) => all.filter(pred).length;
+  const opt = (v, label, cur) => `<option value="${h(v)}" ${cur === v ? "selected" : ""}>${h(label)}</option>`;
+  const sel = (key, items, allLabel) => `<select class="fsel ${f[key] && f[key] !== { state: "open" }[key] ? "set" : ""}" data-filter="${key}">${opt("", allLabel, f[key])}${items.join("")}</select>`;
+  const teams = uniq(all.map((i) => i.team)).map((t) => opt(t, `${t} (${count((i) => i.team === t)})`, f.team));
+  const prios = [1, 2, 3, 4, 0].filter((p) => count((i) => (i.priority || 0) === p)).map((p) => opt(String(p), `${PRIO[p][0]} (${count((i) => (i.priority || 0) === p)})`, f.priority));
+  const states = [opt("open", "Open, not backlog", f.state)].concat(uniq(all.map((i) => i.state)).map((st) => opt(st, `${st} (${count((i) => i.state === st)})`, f.state)));
+  const projects = uniq(all.map((i) => i.project)).map((pr) => opt(pr, pr, f.project)).concat(count((i) => !i.project) ? [opt("none", "No project", f.project)] : []);
+
+  const q = f.q.trim().toLowerCase();
+  const shown = all.filter((i) =>
+    (!f.team || i.team === f.team) &&
+    (f.priority === "" || String(i.priority || 0) === f.priority) &&
+    (f.state === "" ? true : f.state === "open" ? i.stateType !== "backlog" : i.state === f.state) &&
+    (!f.project || (f.project === "none" ? !i.project : i.project === f.project)) &&
+    (!q || `${i.id} ${i.title} ${(i.labels || []).join(" ")}`.toLowerCase().includes(q)))
+    .sort((a, b) => ((a.priority || 9) - (b.priority || 9)) || String(b.updated).localeCompare(String(a.updated)));
+
+  // what each issue's PR says, from the workstreams (same judgement as Focus)
+  const prFor = {};
+  for (const s of w.streams) for (const i of s.issues) if (s.prs.length) prFor[i.id] = s;
+  const filtered = f.team || f.priority !== "" || (f.state && f.state !== "open") || f.project || q;
+  const out = [`<section><h2>Your work <span class="count">all issues assigned to you</span>${wsw}</h2>
+    <div class="filters">
+      ${sel("team", teams, "All teams")}${sel("priority", prios, "Any priority")}${sel("state", states, "Any status")}${sel("project", projects, "Any project")}
+      <input class="fsearch" data-filter="q" placeholder="Filter…" value="${h(f.q)}">
+      <span class="fcount">${shown.length} of ${all.length}${filtered ? ` · <a class="link" data-do="clearFilters">clear</a>` : ""}</span>
+    </div>`];
+  if (!lin) out.push(`<div class="empty">Checking…</div>`);
+  else if (lin.error) out.push(`<div class="empty is-red">${h(lin.error)}</div>`);
+  else if (!shown.length) out.push(`<div class="empty">No issues match these filters.</div>`);
+  for (const i of shown) {
+    const [pl, pc] = PRIO[i.priority || 0], s = prFor[i.id];
+    const meta = [i.id, i.state, i.project, i.due && `due ${i.due}`, `updated ${ago(i.updated)}`].filter(Boolean);
+    out.push(`<div class="row click ${i.stateType === "backlog" ? "quiet" : ""}" data-url="${h(i.url)}"><span class="mark ${i.priority === 1 ? "red" : ""}"></span>
+      <div class="body"><div class="title private" dir="auto">${i.priority && i.priority <= 2 ? `<span class="prio ${pc}">${pl}</span>` : ""}${tagged(i.title)}</div>
+        ${s ? `<div class="why ${{ red: "is-red", amber: "is-amber", go: "is-go" }[s.action.level] || ""}">${h(s.action.text)}</div>` : ""}
+        <div class="meta">${meta.map(h).join(", ")}</div></div></div>`);
+  }
+  out.push(`</section>`);
+  return out.join("");
+}
+
+function finishMid(out) {
+  const gh = WD.data.github;
+  // reviews, grouped by teammate
+  const groups = reviewGroups(), open = WD.state.reviewsOpen || {};
+  const total = groups.reduce((n, g) => n + g.prs.length, 0);
+  out.push(`<section><h2>Reviews for you <span class="count">${total ? plural(total, "pull request") : ""}</span></h2>`);
+  if (!gh) out.push(`<div class="empty">Checking…</div>`);
+  else if (gh.error) out.push(`<div class="empty is-red">${h(gh.error)}</div>`);
+  else if (!total) out.push(`<div class="empty">Nothing waiting for your review.</div>`);
+  for (const g of groups) {
+    const lvl = g.level === "quiet" ? "" : g.level, isOpen = !!open[g.name];
+    const oldest = g.prs.slice().sort((a, b) => b.waitingHours - a.waitingHours)[0];
+    out.push(`<div class="row click ${isOpen ? "open" : ""}" data-group="${h(g.name)}"><span class="mark ${lvl}"></span>
+      <div class="body"><div class="title"><span class="chev">›</span><span class="who private">${h(g.name)}</span> <span style="color:var(--ink-2)">${plural(g.prs.length, "pull request")}</span></div>
+        <div class="why ${lvl ? "is-" + lvl : ""}">Oldest waiting ${span(g.oldestHours * 60)}</div>${g.keys.length ? `<div class="meta">${h(g.keys.slice(0, 4).join(", "))}${g.keys.length > 4 ? "…" : ""}</div>` : ""}</div>
+      <button class="act ${lvl}" data-url="${h(oldest.url)}" title="Open the one waiting longest">Review oldest</button></div>`);
+    if (isOpen) out.push(`<div class="sublist">${g.prs.map((p) => `<div class="row click" data-url="${h(p.url)}"><div class="body">
+        <div class="title private" dir="auto">${h(p.title)}</div><div class="meta">${h(p.repo)} #${p.number}, ${p.size} lines, waiting ${span(p.waitingHours * 60)}${p.again ? ", you reviewed it before" : ""}${p.ci && /FAIL|ERROR/.test(p.ci) ? ", CI failing" : ""}</div></div></div>`).join("")}</div>`);
+  }
+  out.push(`</section>`);
+
+  // waiting to release
+  const radar = gh?.radar || [];
+  if (radar.length) {
+    out.push(`<section><h2>Waiting to release</h2>`);
+    for (const r of radar) {
+      const old = r.since && minsSince(r.since) > 3 * 1440;
+      out.push(`<div class="row click" data-url="${h(r.url)}"><span class="mark ${old ? "amber" : ""}"></span><div class="body">
+        <div class="title"><b>${h(r.repo)}</b> <span style="color:var(--ink-2)">${plural(r.ahead, "commit")} on develop${r.prs?.length ? `, ${plural(r.prs.length, "PR")}` : ""}</span></div>
+        <div class="why ${old ? "is-amber" : ""}">Not on main for ${span(minsSince(r.since))}</div></div></div>`);
+    }
+    out.push(`</section>`);
+  }
+  return setHTML($("mid"), out.join(""));
+}
+
+// ── right: standup (09:00–11:00) or today ───────────────────────────────────
+let lastMode = null;
+let enriching = 0;   // Enrich / Write now clicked: until the standup comes back (about 30 s), at most 5 min
+function renderRight() {
+  const mode = dayMode(), out = [];
+  if (lastMode && lastMode !== mode) $("right").scrollTop = 0;   // switched: start at the top
+  lastMode = mode;
+  const note = dayModeNote();
+  // Today is the default; Standup is the occasional look (and automatic 09:00–11:00)
+  const sw = `<span class="switch"><button data-mode="today" class="${mode === "today" ? "on" : ""}">Today</button><button data-mode="standup" class="${mode === "standup" ? "on" : ""}">Standup</button></span>`;
+  const noteLine = note ? `<div class="modenote">${h(note)}</div>` : "";
+  if (mode === "standup") {
+    const s = WD.data.standup, notes = s?.notes ? parseNotes(s.notes) : null, old = notes && s.day !== dayKey(Date.now());
+    const day = (notes?.title.match(/\d{4}-\d{2}-\d{2}/) || [])[0];
+    out.push(`<section><h2>Standup${day ? ` <span class="count">${new Date(day + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>` : ""}${sw}</h2>${noteLine}`);
+    const today = notes && !old;
+    const enrich = !workday() ? "" : `<button class="act ghost" data-do="enrichStandup" title="${today ? "Look through the sources again and add anything the list is missing — your list stays as it is" : "Write today's standup now"}"${enriching ? " disabled" : ""}>${enriching ? (today ? "Enriching…" : "Writing…") : today ? "Enrich" : "Write now"}</button>`;
+    if (s?.error) out.push(`<div class="note"><span class="is-red">${h(s.error)}</span></div>`);
+    if (!notes) out.push(`<div class="empty">The standup is written here each working morning from what Manara recorded the working day before.</div><div style="margin-bottom:.6rem">${enrich}</div>`);
+    else {
+      out.push(`<div class="note">${h(notes.context || notes.covering)}${old ? ` <span class="is-amber">This is the last standup Manara wrote.</span>` : ""}</div>`);
+      out.push(`<div style="display:flex;gap:.4rem;margin-bottom:.6rem"><button class="act" data-do="copyStandup">Copy list</button>${enrich}</div>`);
+      out.push(`<ol class="spoken">${notes.items.map((i) => `<li><div><div class="hd private" dir="auto">${h(i.head)}</div>${i.detail ? `<div class="dt private" dir="auto">${h(i.detail)}</div>` : ""}</div></li>`).join("")}</ol>`);
+      if (notes.checks.length) out.push(`<h2 style="margin-top:1.6rem">Check before you speak</h2>${notes.checks.map((c) => `<div class="row"><span class="mark amber"></span><div class="body"><div class="title">${h(c.head)}</div><div class="why">${h(c.detail)}</div></div></div>`).join("")}`);
+    }
+    out.push(`</section>`);
+  } else {
+    const d = dayTimeline();
+    out.push(`<section><h2>Today ${sw}</h2>${noteLine}`);
+    out.push(`<div class="glance">${d.glance.map((g) => `<div class="g-k">${h(g.k)}</div><div class="g-v private" dir="auto">${h(g.v)}</div>`).join("")}</div>`);
+    for (const x of d.upcoming) out.push(`<div class="tl up ${x.url ? "click" : ""}" ${x.url ? `data-url="${h(x.url)}" title="Join"` : ""}>
+      <span class="at num">${clock(x.at)}</span><span class="k">${h(x.kind)}</span><span class="tx private" dir="auto">${h(x.text)}</span><span class="rf">${h(x.ref)}</span></div>`);
+    if (d.upcoming.length && d.items.length) out.push(`<div class="tl-gap"></div>`);
+    if (d.items.length) out.push(`<div style="margin-bottom:.6rem"><button class="act" data-do="copyDraft" title="A bullet list of today, to edit into tomorrow's standup">Copy as standup draft</button></div>`);
+    for (const x of d.items) out.push(`<div class="tl ${x.url || x.resume ? "click" : ""}" ${x.url ? `data-url="${h(x.url)}"` : x.resume ? `data-copy="${h(x.resume)}"` : ""}>
+      <span class="at num">${clock(x.at)}</span><span class="k">${h(x.kind)}</span><span class="tx private" dir="auto">${h(x.text)}</span>${x.ref ? `<span class="rf">${h(x.ref)}</span>` : ""}</div>`);
+    if (!d.items.length) out.push(`<div class="empty">Your merges, reviews, closed issues, meetings and Claude sessions will appear here as the day goes.</div>`);
+    out.push(`</section>`);
+  }
+  return setHTML($("right"), out.join(""));
+}
+
+// ── render, keep scroll positions ───────────────────────────────────────────
+let current = null;   // this render's briefing — computed once, used by every part
+// red marks seen before: only a new one pulses
+const seenRed = new Set();
+let redThisRender = new Set();
+function freshMark(id) { redThisRender.add(id); return seenRed.has(id) ? "" : "fresh"; }
+let pending = 0;
+function render() {
+  // a <select> open or a keyboard focus inside a column: redrawing now would close
+  // it or lose your place, so wait until you leave it (blur re-renders)
+  // (keyboard focus only — a mouse click must never freeze the page; at most 60 s)
+  const a = document.activeElement;
+  const hold = a && a.closest && a.closest(".col") && (a.tagName === "SELECT" || (a.matches(".row, .tl, button, [role]") && a.matches(":focus-visible")));
+  if (hold && (!pending || Date.now() - pending < 60000)) { pending = pending || Date.now(); renderHeader(); return; }
+  pending = 0;
+  WD.batch(() => {   // briefing, alerts, workstreams…: worked out once for the whole render
+    current = briefing();
+    // nobody can see the page (another Space, covered, minimised): keep the menu bar
+    // and notifications current, and draw once it is visible again
+    if (document.hidden) { unseen = true; pushStatus(current); notifyNew(current.alerts); return; }
+    unseen = false;
+    const search = a && a.matches && a.matches(".fsearch") ? [a.selectionStart, a.selectionEnd] : null;
+    const cols = ["left", "mid", "right"].map($), ys = cols.map((c) => c.scrollTop);
+    redThisRender = new Set();
+    renderHeader();
+    const changed = [renderLeft(), renderMid(), renderRight()];
+    redThisRender.forEach((id) => seenRed.add(id));
+    cols.forEach((c, i) => { if (changed[i]) { c.scrollTop = ys[i]; decorate(c); } });
+    if (search) { const box = document.querySelector(".fsearch"); if (box) { box.focus(); box.setSelectionRange(...search); } }
+    pushStatus(current); notifyNew(current.alerts);
+  });
+}
+let unseen = false;
+document.addEventListener("visibilitychange", () => { if (!document.hidden && unseen) render(); });
+// a column that was redrawn: rows reachable by keyboard, states for VoiceOver
+function decorate(root) {
+  root.querySelectorAll(".row.click, .tl.click").forEach((r) => { r.tabIndex = 0; r.setAttribute("role", r.dataset.group ? "button" : "link"); });
+  root.querySelectorAll(".row[data-group]").forEach((r) => r.setAttribute("aria-expanded", r.classList.contains("open")));
+  root.querySelectorAll(".lv").forEach((b) => b.setAttribute("aria-pressed", b.classList.contains("on")));
+  focusable(root);
+  root.querySelectorAll(".switch button").forEach((b) => b.setAttribute("aria-pressed", b.classList.contains("on")));
+}
+document.addEventListener("focusout", () => setTimeout(() => { if (pending) render(); }, 0));
+// null, not "": the first render always tells the app what is active, so an alert that
+// ended while the app was closed is forgotten and notifies again if it comes back
+let lastStatus = "", lastActive = null;
+function pushStatus(b) {
+  const sig = JSON.stringify([b.count, b.level, b.line, WD.state.hidden, b.alerts.map((a) => a.id)]);
+  if (sig === lastStatus) return;   // nothing changed: don't redraw the menu bar
+  lastStatus = sig;
+  WD.bridge({ cmd: "status", count: b.count, level: b.level, line: WD.state.hidden ? (b.count ? `${plural(b.count, "thing")} need${b.count === 1 ? "s" : ""} you` : "Nothing needs you") : b.line,
+    items: WD.state.hidden ? [] : b.alerts.slice(0, 8).map((a) => ({ kind: a.level === "red" ? "●" : "○", title: a.text, url: a.url || "" })) }).catch(() => {});
+}
+function notifyNew(active) {
+  const ids = active.filter((a) => a.notify).map((a) => a.id), sig = ids.join("|");
+  if (sig === lastActive) return;   // same alerts as last time: nothing new to say
+  lastActive = sig;
+  WD.bridge({ cmd: "alertsActive", ids }).catch(() => {});
+  for (const a of active) if (a.notify) WD.bridge({ cmd: "notify", id: a.id, title: a.level === "red" ? "Needs you now" : "Heads up", body: a.text, url: a.url || "", investigate: a.investigate || "" }).catch(() => {});
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target.closest(".toast .undo")) { const u = $("toast")._undo; $("toast").classList.remove("show"); if (u) u(); return; }
+  const t = e.target.closest("[data-do],[data-copy],[data-url],[data-level],[data-mute],[data-group],[data-mode],[data-work],[data-sysview],[data-investigate],[data-signin]");
+  if (!t) return;
+  e.stopPropagation();
+  if (t.dataset.level) { const before = WD.state.issueLevel || {}, l = { ...before }; l[t.dataset.issue] = t.dataset.level; WD.setState("issueLevel", l); toast({ red: "Red — it will interrupt you", amber: "Yellow — keep an eye on it", green: "Green — not important for you" }[t.dataset.level], () => WD.setState("issueLevel", before)); return; }
+  if (t.dataset.mute) { const before = WD.state.muted || {}, m = { ...before }; m[t.dataset.mute] = Date.now(); WD.setState("muted", m); toast("Hidden from this list", () => WD.setState("muted", before)); return; }
+  if (t.dataset.work) { WD.setState("workView", t.dataset.work); return; }
+  if (t.dataset.sysview) { WD.setState("systemsView", t.dataset.sysview); return; }
+  if (t.dataset.signin) { signIn(t.dataset.signin); return; }
+  if (t.dataset.investigate) { WD.bridge({ cmd: "investigate", subject: t.dataset.investigate }).then(() => toast("Opening Terminal — Claude is starting the investigation")).catch(() => toast("Couldn't start the investigation")); return; }
+  if (t.dataset.mode) { WD.setState("dayMode", t.dataset.mode); WD.setState("dayModeAt", Date.now()); return; }
+  if (t.dataset.copy) { WD.copy(t.dataset.copy).then(() => toast("Copied — paste it in Terminal")); return; }
+  if (t.dataset.url) { WD.open(t.dataset.url); return; }
+  if (t.dataset.group) { const o = { ...(WD.state.reviewsOpen || {}) }; o[t.dataset.group] = !o[t.dataset.group]; WD.setState("reviewsOpen", o); return; }
+  const d = t.dataset.do;
+  if (d === "refresh") refreshNow();
+  if (d === "proxy") proxyAction();
+  if (d === "windowMode") WD.bridge({ cmd: "windowMode", toggle: true }).catch(() => {});
+  if (d === "tools") WD.bridge({ cmd: "palette", show: true });
+  if (d === "hide") WD.setState("hidden", !WD.state.hidden);
+  if (d === "settings") WD.bridge({ cmd: "settings" });
+  if (d === "unmute") WD.setState("muted", {});
+  if (d === "clearFilters") WD.setState("workFilter", {});
+  if (d === "copyStandup") WD.copy(spokenList(WD.data.standup.notes)).then(() => toast("Standup list copied"));
+  if (d === "enrichStandup" && !enriching) { enriching = Date.now(); render(); WD.bridge({ cmd: "enrichStandup" }).catch(() => { enriching = 0; render(); toast("Couldn't reach Manara"); }); }
+  if (d === "copyDraft") WD.copy(standupDraft()).then(() => toast("Draft copied"));
+});
+function refreshNow() {
+  if (refreshing) return;
+  refreshing = Date.now(); renderHeader();
+  WD.bridge({ cmd: "refresh" }).catch(() => {});
+  setTimeout(() => { refreshing = 0; renderHeader(); }, 20000);   // never spin forever
+}
+// Enrich: done when the standup comes back (or after 5 minutes, if it never does)
+WD.on((kind, name) => {
+  if (!enriching || kind !== "data" || name !== "standup") return;
+  enriching = 0;
+  if (!WD.data.standup?.error) toast("Standup updated");
+});
+setInterval(() => { if (enriching && Date.now() - enriching > 300000) { enriching = 0; render(); } }, 30000);
+// Fresh data after a press: stop spinning once the slow sources are back.
+WD.on((kind, name) => {
+  if (!refreshing || kind !== "data") return;
+  const back = ["health", "github", "linear"].every((k) => (WD.updated[k] || 0) >= refreshing);
+  if (back) { refreshing = 0; renderHeader(); }
+});
+// filters: selects apply at once; the text filter applies as you type (focus kept)
+document.addEventListener("change", (e) => {
+  const k = e.target.dataset?.filter; if (!k || k === "q") return;
+  WD.setState("workFilter", { ...(WD.state.workFilter || {}), [k]: e.target.value });
+});
+document.addEventListener("input", (e) => {
+  if (e.target.dataset?.filter !== "q") return;
+  WD.setState("workFilter", { ...(WD.state.workFilter || {}), q: e.target.value });   // render() keeps focus and caret
+});
+document.addEventListener("keydown", (e) => {
+  const a = document.activeElement, typing = a && (a.tagName === "INPUT" || a.tagName === "SELECT" || a.tagName === "TEXTAREA");
+  if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if ((e.key === "Enter" || e.key === " ") && a?.matches?.(".row.click, .tl.click, [role=link]:not(button), [role=button]:not(button)")) { e.preventDefault(); a.click(); return; }
+    if (e.key === "j" || e.key === "k") {
+      const rows = [...document.querySelectorAll(".row.click, .tl.click")].filter((r) => r.offsetParent);
+      const i = rows.indexOf(a), n = rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === "j" ? 1 : -1)))];
+      if (n) { e.preventDefault(); n.focus(); n.scrollIntoView({ block: "nearest" }); }
+      return;
+    }
+  }
+  if (e.metaKey && e.shiftKey && e.key.toLowerCase() === "r") { e.preventDefault(); refreshNow(); }
+  if (e.metaKey && e.key.toLowerCase() === "k") { e.preventDefault(); WD.bridge({ cmd: "palette", show: true }); }
+  if (e.metaKey && e.key === ",") { e.preventDefault(); WD.bridge({ cmd: "settings" }); }
+});
+
+// ── resizable columns (remembered; double-click a divider to reset) ─────────
+const DEFAULT_COLS = [1, 1.2, 1];
+function applyCols() {
+  const c = (Array.isArray(WD.state.columns) && WD.state.columns.length === 3) ? WD.state.columns : DEFAULT_COLS;
+  if (String(c) === applyCols.last) return;   // runs on every push: an unchanged width must not relayout the grid
+  applyCols.last = String(c);
+  c.forEach((v, i) => document.querySelector(".cols").style.setProperty(`--c${i + 1}`, `${v}fr`));
+}
+document.querySelectorAll(".divider").forEach((d) => {
+  d.addEventListener("dblclick", () => WD.setState("columns", null));
+  d.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    d._fr = null;   // a click without a drag (or a double-click reset) must not re-save the last drag's widths
+    const i = Number(d.dataset.split), cols = [$("left"), $("mid"), $("right")];
+    const widths = cols.map((c) => c.getBoundingClientRect().width);
+    const startX = e.clientX, a = widths[i], b = widths[i + 1], min = 260;
+    document.body.classList.add("resizing"); d.classList.add("drag");
+    const move = (ev) => {
+      const dx = Math.max(min - a, Math.min(b - min, ev.clientX - startX));
+      const w = widths.slice(); w[i] = a + dx; w[i + 1] = b - dx;
+      const total = w.reduce((x, y) => x + y, 0);
+      const fr = w.map((x) => +(x / total * 3).toFixed(3));
+      fr.forEach((v, k) => document.querySelector(".cols").style.setProperty(`--c${k + 1}`, `${v}fr`));
+      d._fr = fr;
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up);
+      document.body.classList.remove("resizing"); d.classList.remove("drag");
+      if (d._fr) WD.setState("columns", d._fr);
+    };
+    document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
+  });
+});
+// "Window" while full screen, "Full screen" while windowed
+window.onWindowMode = (m) => { $("modeBtn").textContent = m === "fullscreen" ? "Exit full screen" : "Full screen"; document.body.classList.toggle("windowed", m !== "fullscreen"); };
+WD.bridge({ cmd: "windowMode" }).then(window.onWindowMode).catch(() => {});
+WD.on(applyCols);
+WD.on(render);
+WD.boot();
+setInterval(() => { if (!document.hidden) render(); }, 30000);   // clock, countdowns, "ago"
+setInterval(() => { if (!document.hidden) renderHeader(); }, 10000);   // "updated just now" stays exact
+</script>
+</body>
+</html>
