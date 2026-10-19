@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- the macOS icon shape: 824 pt square, continuous corners -->
+    <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1430"/><stop offset=".55" stop-color="#1c2a57"/><stop offset="1" stop-color="#3b3a6e"/>
+    </linearGradient>
+    <radialGradient id="halo" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffd98a" stop-opacity=".9"/><stop offset=".35" stop-color="#ffc35a" stop-opacity=".35"/><stop offset="1" stop-color="#ffc35a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beamR" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffe2a0" stop-opacity=".85"/><stop offset=".55" stop-color="#ffd27a" stop-opacity=".25"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="beamL" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffe2a0" stop-opacity=".35"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="tower" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#e3e7f0"/><stop offset="1" stop-color="#a9b2c6"/>
+    </linearGradient>
+    <linearGradient id="lamp" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff4cf"/><stop offset="1" stop-color="#ffbe4d"/>
+    </linearGradient>
+    <linearGradient id="sea1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2d4a8a"/><stop offset="1" stop-color="#121d3d"/>
+    </linearGradient>
+    <linearGradient id="sea2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2c5c"/><stop offset="1" stop-color="#0a1128"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".20"/><stop offset=".42" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000" flood-opacity=".32"/></filter>
+  </defs>
+
+  <g filter="url(#drop)"><rect x="100" y="100" width="824" height="824" rx="186" fill="url(#sky)"/></g>
+  <g clip-path="url(#sq)">
+    <!-- stars -->
+    <g fill="#fff"><circle cx="220" cy="230" r="4" opacity=".8"/><circle cx="310" cy="165" r="3" opacity=".6"/><circle cx="785" cy="190" r="4" opacity=".75"/>
+      <circle cx="860" cy="300" r="3" opacity=".5"/><circle cx="175" cy="390" r="3" opacity=".55"/><circle cx="700" cy="140" r="2.5" opacity=".5"/></g>
+    <!-- the beams: a broad warm one, and its fainter twin -->
+    <path d="M512 352 L960 214 L960 520 Z" fill="url(#beamR)"/>
+    <path d="M512 352 L64 262 L64 432 Z" fill="url(#beamL)"/>
+    <circle cx="512" cy="352" r="150" fill="url(#halo)"/>
+    <!-- the tower -->
+    <path d="M462 412 L562 412 L594 790 L430 790 Z" fill="url(#tower)"/>
+    <path d="M454 520 L570 520 L574 562 L450 562 Z" fill="#ef6a5b"/>
+    <path d="M444 650 L580 650 L584 692 L440 692 Z" fill="#ef6a5b"/>
+    <rect x="446" y="398" width="132" height="22" rx="8" fill="#2b3557"/>
+    <!-- the lantern room -->
+    <rect x="466" y="316" width="92" height="84" rx="18" fill="url(#lamp)"/>
+    <rect x="466" y="316" width="92" height="84" rx="18" fill="#fff" opacity=".18" filter="url(#soft)"/>
+    <path d="M454 318 Q512 262 570 318 Z" fill="#2b3557"/>
+    <circle cx="512" cy="264" r="9" fill="#2b3557"/>
+    <!-- the sea -->
+    <path d="M100 770 C 260 740 380 790 520 770 C 660 750 780 790 924 762 V924 H100 Z" fill="url(#sea1)"/>
+    <path d="M100 830 C 240 805 400 850 540 828 C 690 806 800 846 924 822 V924 H100 Z" fill="url(#sea2)"/>
+    <path d="M560 792 C 640 784 700 800 760 792" stroke="#ffd98a" stroke-opacity=".45" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <!-- glass: light along the top, a hairline edge -->
+    <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#sheen)"/>
+  </g>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="185" fill="none" stroke="#fff" stroke-opacity=".16" stroke-width="3"/>
+</svg>

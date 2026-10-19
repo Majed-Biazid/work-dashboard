@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' file:; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'">
+<title>Quick Tools</title>
+<!--
+  Quick Tools (⌥⌘K) — a floating panel over whatever you are doing.
+  On open it reads the clipboard once (never in the background), offers the tool that
+  fits it, and forgets it when the panel closes. Everything transforms in this page;
+  nothing is sent anywhere and nothing is written to disk.
+  Keys: type to search · ↑↓ choose · ↩ open / jump · ⇥ into the tool · ⌘↩ copy the
+  main result · esc back, then close.
+-->
+<style>
+  /* the dashboard's colours (theme.css), on the panel's frosted glass */
+  :root { --amber: #f2b441; --red: #ff6b5e; --green: #5fc68b; --line: rgba(255,255,255,.09); --muted: rgba(255,255,255,.58); --faint: rgba(255,255,255,.5); }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: rgba(16,18,24,.55); color: rgba(255,255,255,.92);
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; -webkit-user-select: none; overflow: hidden; }
+  body { display: flex; flex-direction: column; }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
+  .bar svg { flex: none; opacity: .55; }
+  #q { flex: 1; background: none; border: 0; outline: 0; color: #fff; font-size: 18px; font-weight: 450; }
+  #q::placeholder { color: rgba(255,255,255,.32); }
+  .kbd { font-size: 10.5px; color: var(--faint); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+  .body { flex: 1; min-height: 0; display: grid; grid-template-columns: 250px 1fr; }
+  .list { overflow-y: auto; border-right: 1px solid var(--line); padding: 6px; }
+  .sec { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 9px 8px 4px; }
+  .it { display: flex; gap: 9px; align-items: center; padding: 7px 9px; border-radius: 8px; cursor: pointer; }
+  .it .ic { width: 22px; height: 22px; border-radius: 6px; flex: none; display: grid; place-items: center; font-size: 11px; font-weight: 700;
+            background: rgba(255,255,255,.08); color: rgba(255,255,255,.8); }
+  .it .nm { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .it .sb { font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .it.on { background: rgba(138,180,255,.26); }
+  .it.on .ic { background: rgba(255,255,255,.18); }
+  .it .badge { margin-left: auto; font-size: 9.5px; font-weight: 700; color: var(--green); }
+  .pane { overflow-y: auto; padding: 14px 16px 16px; -webkit-user-select: text; }
+  .pane h3 { margin: 0; font-size: 15px; } .pane .hint { font-size: 11.5px; color: var(--muted); margin: 2px 0 10px; }
+  textarea, input.f { width: 100%; background: rgba(0,0,0,.28); border: 1px solid var(--line); border-radius: 9px; color: #fff;
+    font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 8px 10px; outline: none; resize: vertical; }
+  textarea:focus, input.f:focus { border-color: rgba(138,180,255,.8); }
+  label.l { display: block; font-size: 10.5px; color: var(--faint); margin: 8px 0 4px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+  .blk { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.035); }
+  .blk .h { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--muted); }
+  .blk pre { margin: 0; padding: 8px 10px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; }
+  .copy { cursor: pointer; font-size: 10.5px; font-weight: 650; padding: 1px 8px; border-radius: 99px; background: rgba(255,255,255,.08); color: rgba(255,255,255,.8); }
+  .copy:hover { background: rgba(255,255,255,.18); } .copy.done { color: var(--green); }
+  .note { margin-top: 10px; font-size: 12px; padding: 7px 10px; border-radius: 9px; background: rgba(255,255,255,.05); color: rgba(255,255,255,.75); }
+  .note.good { background: rgba(95,198,139,.13); color: #9be9a8; } .note.bad { background: rgba(255,123,114,.13); color: #ffb3ad; }
+  .err { margin-top: 10px; font-size: 12px; color: #ffb3ad; }
+  .diff .add { color: #9be9a8; background: rgba(63,185,80,.1); display: inline-block; width: 100%; }
+  .diff .del { color: #ffb3ad; background: rgba(255,123,114,.1); display: inline-block; width: 100%; }
+  .row { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); margin-top: 8px; background: rgba(255,255,255,.03); }
+  .row .grow { flex: 1; min-width: 0; } .row .t { font-size: 12.5px; } .row .m { font-size: 11px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .foot { display: flex; gap: 14px; padding: 7px 14px; border-top: 1px solid var(--line); font-size: 11px; color: var(--faint); }
+  .empty { color: var(--faint); font-size: 12px; padding: 12px 4px; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="q" autocomplete="off" spellcheck="false" placeholder="Search tools, paste anything, or type an issue key or repo#123">
+    <span class="kbd">esc</span>
+  </div>
+  <div class="body">
+    <div class="list" id="list"></div>
+    <div class="pane" id="pane"></div>
+  </div>
+  <div class="foot"><span>↑↓ choose</span><span>↩ open</span><span>⇥ into tool</span><span>⌘↩ copy the main result</span><span style="margin-left:auto">Runs on this Mac only · nothing is sent or saved</span></div>
+<script src="core.js"></script>
+<script src="tools.js"></script>
+<script>
+const bridge = (msg) => WD.bridge(msg);
+const $ = (id) => document.getElementById(id);
+const LINEAR_WS = () => WD.config.linear?.workspace || "";
+const ORG = () => WD.config.github?.org || "";
+
+let rows = [], sel = 0, clip = "", active = null, inputs = {}, runSeq = 0;
+
+// ── list ────────────────────────────────────────────────────────────────────
+const ICON = { jwt: "JW", time: "⏱", json: "{}", b64: "64", url: "🔗", phone: "☎", ksa: "SA", text: "Aa", hash: "#", uuid: "ID", case: "aA", lines: "≡", cron: "⏲", diff: "±",
+               sessions: "✦", db: "DB", standup: "☰", linear: "L", github: "GH" };
+function build(query) {
+  const q = query.trim();
+  rows = [];
+  // 1. what the query itself is (pasted data or a key)
+  const asData = q.length > 2 ? detectAll(q).filter((h) => h.score >= 50) : [];
+  for (const h of asData) rows.push(hitRow(h, q, "Your input"));
+  // 2. what the clipboard is — only when nothing is typed
+  if (!q && clip) for (const h of detectAll(clip).filter((h) => h.score >= 50).slice(0, 3)) rows.push(hitRow(h, clip, "From clipboard"));
+  // 3. tools and app tools, filtered by name / keywords
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const match = (t) => !words.length || asData.length || words.every((w) => (t.name + " " + t.keys).toLowerCase().includes(w));
+  const seen = new Set(rows.filter((r) => r.tool).map((r) => r.tool.id));
+  // a tool whose name matches comes before one that only matches a keyword ("hash" → Hash & HMAC, then JSON)
+  const named = (t) => (words.every((w) => t.name.toLowerCase().includes(w)) ? 1 : 0);
+  const byName = (list) => (words.length ? [...list].sort((a, b) => named(b) - named(a)) : list);
+  for (const t of byName(TOOLS)) if (match(t) && !seen.has(t.id)) rows.push({ sec: "Tools", tool: t, name: t.name, sub: t.hint });
+  for (const t of byName(APP_TOOLS)) if (match(t)) rows.push({ sec: "From your work", app: t, name: t.name, sub: t.hint, id: t.id });
+  if (q && !asData.length && !rows.length) rows.push({ sec: "Search", app: APP_TOOLS[0], name: `Find sessions about “${q}”`, sub: "Claude Code history", id: "sessions", preset: q });
+  sel = Math.min(sel, Math.max(0, rows.length - 1));
+  renderList();
+}
+function hitRow(h, text, sec) {
+  const badge = sec === "From clipboard" ? "CLIPBOARD" : "";
+  if (h.jump === "linear") return { sec, jump: `https://linear.app/${LINEAR_WS()}/issue/${h.key}`, name: `Open ${h.key} in Linear`, sub: "linear.app", id: "linear", badge };
+  if (h.jump === "github") return { sec, jump: `https://github.com/${ORG()}/${h.repo}/pull/${h.n}`, name: `Open ${h.repo}#${h.n}`, sub: "GitHub pull request / issue", id: "github", badge };
+  return { sec, tool: h.tool, name: h.tool.name, sub: h.tool.hint, preset: text, badge };
+}
+function renderList() {
+  let html = "", last = null;
+  rows.forEach((r, i) => {
+    if (r.sec !== last) { html += `<div class="sec">${esc(r.sec)}</div>`; last = r.sec; }
+    const id = r.tool ? r.tool.id : r.id;
+    html += `<div class="it ${i === sel ? "on" : ""}" data-i="${i}"><div class="ic">${ICON[id] || "•"}</div>
+      <div style="min-width:0"><div class="nm">${esc(r.name)}</div><div class="sb">${esc(r.sub)}</div></div>${r.badge ? `<span class="badge">${r.badge}</span>` : ""}</div>`;
+  });
+  $("list").innerHTML = html || `<div class="empty">No tool matches.</div>`;
+  const on = $("list").querySelector(".it.on"); if (on) on.scrollIntoView({ block: "nearest" });
+  openRow(rows[sel], false);
+}
+
+// ── pane: a selected row ────────────────────────────────────────────────────
+function openRow(r, focus) {
+  if (!r) { $("pane").innerHTML = ""; active = null; return; }
+  const key = r.tool ? r.tool.id : r.id;
+  if (active !== key || r.preset !== undefined) {
+    active = key;
+    inputs = {};
+    if (r.preset !== undefined) inputs[0] = r.preset;
+  }
+  if (r.jump) {
+    $("pane").innerHTML = `<h3>${esc(r.name)}</h3><div class="hint">Press ↩ to open it in your browser.</div>`;
+    return;
+  }
+  if (r.tool) return toolPane(r.tool, focus);
+  if (r.app) return appPane(r.app.id, focus, r.preset);
+}
+
+function toolPane(t, focus) {
+  const fields = (t.inputs || []).map((lab, i) =>
+    `<label class="l">${esc(lab)}</label><textarea data-in="${i}" rows="${i === 0 ? 4 : 2}" spellcheck="false">${esc(inputs[i] || "")}</textarea>`).join("");
+  $("pane").innerHTML = `<h3>${esc(t.name)}</h3><div class="hint">${esc(t.hint)}</div>${fields}<div id="out"></div>`;
+  $("pane").querySelectorAll("textarea").forEach((ta) => ta.addEventListener("input", () => { inputs[ta.dataset.in] = ta.value; runTool(t); }));
+  if (focus) { const ta = $("pane").querySelector("textarea"); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
+  runTool(t);
+}
+
+async function runTool(t) {
+  const seq = ++runSeq;
+  const vals = (t.inputs || []).map((_, i) => inputs[i] || "");
+  const needsInput = !["uuid", "time"].includes(t.id);
+  if (needsInput && !vals[0].trim()) { $("out").innerHTML = `<div class="empty">Paste or type above — results appear as you type.</div>`; return; }
+  try {
+    const blocks = await t.run(vals);
+    if (seq !== runSeq) return;
+    $("out").innerHTML = blocks.map(renderBlock).join("");
+  } catch (e) {
+    if (seq !== runSeq) return;
+    $("out").innerHTML = `<div class="err">${esc(e.message || e)}</div>`;
+  }
+}
+function renderBlock(b) {
+  if (b.note) return `<div class="note ${b.tone || ""}">${esc(b.note)}</div>`;
+  if (b.html) return `<div class="blk"><div class="h"><span>${esc(b.label)}</span></div>${b.html}</div>`;
+  return `<div class="blk"><div class="h"><span>${esc(b.label)}</span><span class="copy" data-copy="${esc(b.value)}"${b.primary ? ` data-primary title="⌘↩ copies this"` : ""}>${b.primary ? "Copy ⌘↩" : "Copy"}</span></div><pre>${esc(b.value)}</pre></div>`;
+}
+
+// ── pane: app tools (read live data through the app) ────────────────────────
+// Database ports come from config.dbProxy; a "never" port gets no copy button.
+const DBS = () => (WD.config.dbProxy?.ports || []);
+const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;   // shell-quote for copied commands
+const psqlCmd = (d) => `PGPASSWORD="$(security find-generic-password -s ${shq(WD.config.dbProxy?.keychainService || "your-keychain-service")} -a ${shq(d.keychain)} -w)" ${WD.config.dbProxy?.psql || "psql"} "host=127.0.0.1 port=${d.port} dbname=${d.db} user=${d.user} sslmode=disable"`;
+
+let sessTimer = null;
+async function appPane(id, focus, preset) {
+  const pane = $("pane");
+  if (id === "sessions") {
+    pane.innerHTML = `<h3>Find a Claude session</h3><div class="hint">Searches what you typed in past sessions (last 90 days). Copy the resume command and paste it in a terminal.</div>
+      <input class="f" id="sq" placeholder="e.g. refund webhook, login otp" value="${esc(inputs[0] || preset || "")}"><div id="out"></div>`;
+    const sq = $("sq");
+    const go = () => { inputs[0] = sq.value; clearTimeout(sessTimer); sessTimer = setTimeout(() => searchSessions(sq.value), 450); };
+    sq.addEventListener("input", go);
+    if (focus) sq.focus();
+    if (sq.value.trim()) searchSessions(sq.value);
+    return;
+  }
+  if (id === "db") {
+    pane.innerHTML = `<h3>Database connections</h3><div class="hint">Local proxy ports on 127.0.0.1. Copy gives a psql command that reads the password from Keychain without printing it. Wrap reads in <code>BEGIN READ ONLY; SET LOCAL statement_timeout='60s';</code></div><div id="out"></div>`;
+    const local = WD.data.local;
+    const up = new Set(((local && local.proxy.ports) || []).filter((p) => p.up).map((p) => p.port));
+    const google = local && local.logins.find((l) => l.name === "Google Cloud");
+    let html = "";
+    if (local && !local.proxy.running) html += `<div class="note bad">The proxy is not running${google && !google.ok ? " — your Google login has expired" : ""}.</div>
+      <div class="row"><div class="grow"><div class="t">Fix</div><div class="m">${esc(google && !google.ok ? google.fix : (WD.config.dbProxy?.startCommand || ""))}</div></div><span class="copy" data-copy="${esc(google && !google.ok ? google.fix : (WD.config.dbProxy?.startCommand || ""))}">Copy</span></div>`;
+    html += DBS().map((d) => { const never = d.role === "never"; return `<div class="row"><span class="dot" style="background:${never ? "var(--red)" : up.has(d.port) ? "var(--green)" : "rgba(255,255,255,.2)"}"></span>
+      <div class="grow"><div class="t">${d.port}, ${esc(d.name)}</div><div class="m">${never ? "Accepts writes — never used for reads. No copy button on purpose." : d.user ? `${esc(d.db)} as ${esc(d.user)}` : "127.0.0.1:" + d.port}</div></div>
+      ${never ? "" : `<span class="copy" data-copy="${esc(d.user ? psqlCmd(d) : "127.0.0.1:" + d.port)}">Copy</span>`}</div>`; }).join("");
+    $("out").innerHTML = html;
+    return;
+  }
+  if (id === "standup") {
+    pane.innerHTML = `<h3>Copy standup list</h3><div id="out"><div class="empty">Loading…</div></div>`;
+    const notes = WD.data.standup && WD.data.standup.notes;
+    if (!notes) { $("out").innerHTML = `<div class="empty">No standup yet — Manara writes it each working morning.</div>`; return; }
+    const p = parseNotes(notes), text = spokenList(notes);
+    $("out").innerHTML = `<div class="hint">${esc(p.title)} · ${p.items.length} items</div>` + renderBlock({ label: "Spoken list", value: text });
+  }
+}
+let searchSeq = 0;   // only the newest search may draw its results
+async function searchSessions(q) {
+  const seq = ++searchSeq;
+  if (!q.trim()) { $("out").innerHTML = ""; return; }
+  $("out").innerHTML = `<div class="empty">Searching…</div>`;
+  let list = [];
+  try { list = JSON.parse(await bridge({ cmd: "searchSessions", query: q })); if (seq !== searchSeq) return; } catch (e) { $("out").innerHTML = `<div class="err">${esc(e)}</div>`; return; }
+  if (!list.length) { $("out").innerHTML = `<div class="empty">No session mentions that.</div>`; return; }
+  $("out").innerHTML = list.slice(0, 8).map((s) => {
+    const cmd = s.resume;
+    return `<div class="row"><div class="grow"><div class="t">${esc(s.title || s.id.slice(0, 8))}</div>
+      <div class="m">${esc(s.first)} → ${esc(s.last)} · ${esc((s.cwd || "~").replace(/^\/Users\/[^/]+/, "~"))}</div>
+      ${s.snip ? `<div class="m" dir="auto">“${esc(s.snip.slice(0, 140))}”</div>` : ""}</div>
+      <span class="copy" data-copy="${esc(cmd)}">Copy resume</span></div>`;
+  }).join("");
+}
+
+// ── keys & clicks ───────────────────────────────────────────────────────────
+function activate() {
+  const r = rows[sel];
+  if (!r) return;
+  if (r.jump) { bridge({ cmd: "open", url: r.jump, closePalette: true }); return; }
+  openRow(r, true);
+}
+const close = () => bridge({ cmd: "palette", show: false });
+function copyEl(el) {
+  bridge({ cmd: "copy", text: el.dataset.copy }).then(() => { el.textContent = "Copied ✓"; el.classList.add("done"); setTimeout(() => { el.textContent = el.dataset.label || "Copy"; el.classList.remove("done"); }, 1400); });
+}
+document.addEventListener("click", (e) => {
+  const c = e.target.closest("[data-copy]"); if (c) { c.dataset.label = c.dataset.label || c.textContent; copyEl(c); return; }
+  const it = e.target.closest(".it"); if (it) { sel = Number(it.dataset.i); renderList(); activate(); }
+});
+$("q").addEventListener("input", () => { sel = 0; build($("q").value); });
+document.addEventListener("keydown", (e) => {
+  const inSearch = document.activeElement === $("q");
+  if (e.key === "Escape") { e.preventDefault(); if (!inSearch) { $("q").focus(); } else if ($("q").value) { $("q").value = ""; build(""); } else close(); return; }
+  if (e.key === "Enter" && e.metaKey) { e.preventDefault(); const c = $("pane").querySelector("[data-primary]") || $("pane").querySelector("[data-copy]"); if (c) { c.dataset.label = c.dataset.label || c.textContent; copyEl(c); } return; }
+  if (!inSearch) return;
+  if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(rows.length - 1, sel + 1); renderList(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); renderList(); }
+  else if (e.key === "Enter") { e.preventDefault(); activate(); }
+  else if (e.key === "Tab") { e.preventDefault(); const f = $("pane").querySelector("textarea, input.f"); if (f) f.focus(); }
+});
+
+// Called by the app each time the panel opens. The clipboard is read now and held
+// only in memory until the panel closes (onPaletteHide).
+window.onPaletteShow = async (tool) => {
+  clip = "";
+  try { clip = await bridge({ cmd: "clipboard" }); } catch (e) { /* none */ }
+  $("q").value = "";
+  sel = 0; active = null;
+  build("");
+  if (tool) { const i = rows.findIndex((r) => (r.tool ? r.tool.id : r.id) === tool); if (i >= 0) { sel = i; renderList(); } }
+  $("q").focus();
+};
+// Called by the app when the panel closes: forget the clipboard and what was typed.
+window.onPaletteHide = () => {
+  clip = ""; inputs = {}; active = null; sel = 0; runSeq++; searchSeq++;
+  $("q").value = ""; build("");
+};
+// at launch (the panel loads hidden) build the list only: the clipboard is read
+// when you open the panel, never in the background
+WD.boot().then(() => build(""));
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.workdashboard.open</string>
+  <!-- Installed by ./build.sh --login. Opens Manara at login and after
+       every wake: ensure-open.sh runs every minute but acts once per boot+wake. -->
+  <key>ProgramArguments</key>
+  <array><string>__ROOT__/launchd/ensure-open.sh</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>60</integer>
+  <key>StandardErrorPath</key><string>__HOME__/Library/Logs/work-dashboard-open.log</string>
+</dict>
+</plist>
