@@ -1,0 +1,145 @@
+/* Manara — design tokens.
+   Principle: dark cockpit. When everything is normal the screen is quiet — no
+   rows of green lights. Only what needs you lights up: amber (look soon) or red
+   (act now). Green is reserved for "you can merge" and "all clear".
+   All sizes are rem, so Settings → Text size (⌘+ / ⌘−) scales everything. */
+
+:root {
+  --bg: #1b1e24;          /* graphite, not black */
+  --raise: #22262d;       /* hover, inputs, the one raised surface */
+  --rule: #2c3139;        /* hairlines between columns and rows */
+  --ink: #e9ebee;         /* what you read */
+  --ink-2: #a6acb6;       /* supporting */
+  --ink-3: #878e99;       /* quiet: normal states, timestamps (AA: 5:1 on bg, 4.6:1 on raise) */
+  --red: #ff6b5e;   --red-wash: rgba(255, 107, 94, .12);
+  --amber: #f2b441; --amber-wash: rgba(242, 180, 65, .11);
+  --go: #5fc68b;    --go-wash: rgba(95, 198, 139, .12);
+  --focus: #8ab4ff;
+
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Arabic", sans-serif;
+  --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Arabic", sans-serif;
+  --rounded: ui-rounded, "SF Pro Rounded", -apple-system, sans-serif;
+
+  /* type scale (16px base × text size) */
+  --t-meta: .75rem;      /* 12 — times, counts */
+  --t-small: .8125rem;   /* 13 — supporting lines */
+  --t-body: .9375rem;    /* 15 — rows */
+  --t-head: 1.0625rem;   /* 17 — section titles */
+  --t-lead: 1.5rem;      /* 24 — the briefing */
+  --radius: 10px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { font-size: calc(16px * var(--scale, 1)); }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 400 var(--t-body)/1.42 var(--sans);
+       -webkit-font-smoothing: antialiased; -webkit-user-select: none; cursor: default; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* status words and marks — used everywhere the same way */
+.is-red   { color: var(--red); }
+.is-amber { color: var(--amber); }
+.is-go    { color: var(--go); }
+.is-quiet { color: var(--ink-3); }
+.mark { width: 3px; border-radius: 2px; align-self: stretch; flex: none; background: transparent; }
+.mark.red { background: var(--red); } .mark.amber { background: var(--amber); }
+
+/* the one action on a row */
+.act { flex: none; border: 0; border-radius: 7px; padding: .25rem .6rem; font-size: var(--t-small); font-weight: 600;
+       background: var(--raise); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.act:hover { background: #2a2f37; }
+.act.red   { background: var(--red-wash); color: var(--red); }
+.act.amber { background: var(--amber-wash); color: var(--amber); }
+.act.go    { background: var(--go-wash); color: var(--go); }
+.act.ghost { background: transparent; color: var(--ink-2); font-weight: 500; }
+.act.ghost:hover { background: var(--raise); color: var(--ink); }
+.act:disabled { opacity: .4; cursor: default; } .act:disabled:hover { background: var(--raise); }
+.act.ghost:disabled:hover { background: transparent; color: var(--ink-2); }
+
+/* privacy: blur names and titles before a screen share */
+body.hidden .private { filter: blur(7px); }
+[dir=auto] { unicode-bidi: plaintext; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ── themes ─────────────────────────────────────────────────────────────────
+   Settings → Appearance. Graphite is the default; Liquid Glass puts the page on
+   your blurred desktop picture (the app draws it behind a transparent page);
+   Midnight is true black; Light follows the Mac light look; "Match macOS"
+   picks Light or Graphite. Only colours and surfaces change — never layout. */
+:root {
+  --shadow-lift: 0 2px 4px rgba(0, 0, 0, .28), 0 14px 34px rgba(0, 0, 0, .24);
+  --card: #20242b;                       /* a section's surface */
+  --card-edge: rgba(255, 255, 255, .05);
+  --card-hi: rgba(255, 255, 255, .04);   /* the light catching a card's top edge */
+  --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 8px 24px rgba(0, 0, 0, .18);
+  --act-bg: #2a2f37; --act-hover: #343a44;
+  --switch-on: #3a404b;
+  --toast: rgba(47, 52, 60, .92);
+  --radius-card: 16px;
+}
+:root[data-theme="midnight"] {
+  --bg: #000; --raise: #161618; --rule: #232327;
+  --ink: #f2f2f7; --ink-2: #a8a8b0; --ink-3: #8c8c94;
+  --card: #0e0e10; --card-edge: rgba(255, 255, 255, .07); --card-hi: rgba(255, 255, 255, .03);
+  --act-bg: #1f1f23; --act-hover: #2a2a30; --switch-on: #2c2c32; --toast: rgba(28, 28, 32, .94);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f2f2f5; --raise: #e9e9ee; --rule: #dcdce3;
+  --ink: #1d1d1f; --ink-2: #48484e; --ink-3: #6b6b72;
+  --red: #d70015; --red-wash: rgba(255, 59, 48, .12);
+  --amber: #9a5700; --amber-wash: rgba(255, 159, 10, .16);
+  --go: #1a7f37; --go-wash: rgba(52, 199, 89, .14);
+  --focus: #0064d2;
+  --card: #fff; --card-edge: rgba(0, 0, 0, .06); --card-hi: rgba(255, 255, 255, .9);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 8px 24px rgba(0, 0, 0, .06);
+  --act-bg: #fff; --act-hover: #f4f4f7; --switch-on: #fff; --toast: rgba(255, 255, 255, .95);
+}
+:root[data-theme="glass"] {
+  --bg: transparent; --raise: rgba(255, 255, 255, .09); --rule: rgba(255, 255, 255, .11);
+  --ink: #fff; --ink-2: rgba(255, 255, 255, .78); --ink-3: rgba(255, 255, 255, .62);
+  --card: rgba(255, 255, 255, .075); --card-edge: rgba(255, 255, 255, .14); --card-hi: rgba(255, 255, 255, .22);
+  --shadow: 0 1px 1px rgba(0, 0, 0, .08), 0 18px 48px -12px rgba(0, 0, 0, .35);   /* deep and soft: the card floats */
+  --shadow-lift: 0 2px 2px rgba(0, 0, 0, .08), 0 26px 60px -14px rgba(0, 0, 0, .42);
+  --act-bg: rgba(255, 255, 255, .13); --act-hover: rgba(255, 255, 255, .2); --switch-on: rgba(255, 255, 255, .22);
+  --toast: rgba(40, 40, 46, .72);
+  --radius-card: 22px;
+  /* status colours lifted so they hold on any desktop picture */
+  --red: #ff8b80; --red-wash: rgba(255, 99, 86, .28);
+  --amber: #ffcf5c; --amber-wash: rgba(255, 196, 64, .24);
+  --go: #7ee2a4; --go-wash: rgba(76, 217, 130, .24);
+  --focus: #a9c8ff;
+}
+
+/* buttons: Mac push buttons — a soft top light, a gentle press */
+.act { border-radius: 8px; padding: .28rem .7rem; background: var(--act-bg);
+       box-shadow: inset 0 1px 0 var(--card-hi);   /* flat: a lit top edge, no shadow under it */
+       transition: background-color .15s, color .15s, transform .08s; }
+.act:hover { background: var(--act-hover); }
+.act:active:not(:disabled) { transform: scale(.97); }
+.act.red, .act.amber, .act.go { box-shadow: none; }
+.act.ghost { box-shadow: none; }
+:root[data-theme="light"] .act:not(.ghost):not(.red):not(.amber):not(.go) { border: 1px solid rgba(0, 0, 0, .1); }
+
+/* the kinds of Liquid Glass (Settings → Appearance → Glass). Tinted is smoked
+   glass with a colour wash the app lays over the picture; it needs no tokens. */
+:root[data-theme="glass"][data-glass="clear"] {
+  --card: rgba(255, 255, 255, .1); --card-edge: rgba(255, 255, 255, .22); --card-hi: rgba(255, 255, 255, .3);
+  --raise: rgba(255, 255, 255, .12);
+}
+:root[data-theme="glass"][data-glass="clear"] body { text-shadow: 0 1px 2px rgba(0, 0, 0, .35); }   /* thin glass: keep text legible over a busy picture */
+:root[data-theme="glass"][data-glass="frosted"] {
+  color-scheme: light;
+  --ink: #1d1d1f; --ink-2: rgba(0, 0, 0, .7); --ink-3: rgba(0, 0, 0, .56);
+  --raise: rgba(0, 0, 0, .06); --rule: rgba(0, 0, 0, .09);
+  --card: rgba(255, 255, 255, .5); --card-edge: rgba(255, 255, 255, .75); --card-hi: rgba(255, 255, 255, .95);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 12px 32px rgba(0, 0, 0, .1);
+  --red: #c4001a; --red-wash: rgba(255, 59, 48, .14);
+  --amber: #8a4d00; --amber-wash: rgba(255, 159, 10, .2);
+  --go: #157a35; --go-wash: rgba(52, 199, 89, .16);
+  --focus: #0058c4;
+  --act-bg: rgba(255, 255, 255, .72); --act-hover: rgba(255, 255, 255, .92); --switch-on: #fff; --toast: rgba(255, 255, 255, .82);
+}

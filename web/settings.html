@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' file:; style-src 'unsafe-inline' file:; img-src data:; connect-src 'none'; form-action 'none'">
+<link rel="stylesheet" href="theme.css">
+<title>Settings</title>
+<style>
+  body { overflow-y: auto; -webkit-user-select: text; }
+  /* the window's titlebar is transparent over the page: a band the height of the
+     title and traffic lights keeps content from scrolling under them; its hairline
+     shows only once the page has scrolled, like a native Mac window */
+  .titlebar { position: fixed; top: 0; left: 0; right: 0; height: 52px; background: var(--bg); z-index: 10; border-bottom: 1px solid transparent; transition: border-color .15s; }
+  .titlebar.scrolled { border-bottom-color: var(--rule); }
+  main { max-width: 46rem; margin: 0 auto; padding: calc(52px + 1.2rem) 2rem 9rem; }
+  h1 { font: 600 1.6rem/1.2 var(--display); margin: 0 0 .3rem; }
+  .lead { color: var(--ink-2); margin: 0 0 2.2rem; }
+  section { padding: 1.6rem 0; border-top: 1px solid var(--rule); }
+  h2 { font: 600 var(--t-head)/1.3 var(--display); margin: 0 0 .25rem; }
+  .help { color: var(--ink-3); font-size: var(--t-small); margin: 0 0 1rem; max-width: 38rem; }
+  .field { display: grid; grid-template-columns: 13rem 1fr; gap: 1rem; align-items: center; padding: .45rem 0; font-size: var(--t-small); }
+  .field > input, .field > select { justify-self: start; }   /* a time box is a time box wide, not the whole row */
+  label.field { cursor: default; }   /* the whole line toggles its checkbox: a big target */
+  .field > span, .field .row { color: var(--ink-2); font-size: var(--t-small); }
+  input[type=text], input[type=time], input[type=number], select, textarea {
+    background: var(--raise); border: 1px solid var(--rule); color: var(--ink); border-radius: 8px; padding: .4rem .6rem; font: inherit; font-size: var(--t-small); }
+  input[type=number] { width: 6rem; }
+  textarea { width: 100%; min-height: 26rem; font: 12px/1.5 ui-monospace, Menlo, monospace; }
+  input[type=range] { width: 14rem; accent-color: var(--focus); }
+  input[type=checkbox] { accent-color: var(--focus); width: 1rem; height: 1rem; }
+  table { width: 100%; border-collapse: collapse; font-size: var(--t-small); }
+  th { text-align: left; font-weight: 500; color: var(--ink-3); padding: .3rem .4rem; white-space: nowrap; }
+  td { padding: .35rem .4rem; border-top: 1px solid var(--rule); white-space: nowrap; }
+  .days { display: flex; gap: .7rem; flex-wrap: wrap; } .days label { display: flex; gap: .3rem; align-items: center; font-size: var(--t-small); }
+  .bar { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 35%); padding: 1.5rem 0 1rem; display: flex; gap: .5rem; align-items: center; }
+  /* the save status: saving… → ✓ Saved, like a Mac settings window (no Save button) */
+  .status { display: inline-flex; align-items: center; gap: .45rem; font-size: var(--t-small); color: var(--ink-3); background: var(--raise); padding: .35rem .75rem; border-radius: 99px; }
+  .status .dot { width: .5rem; height: .5rem; border-radius: 50%; background: var(--ink-3); }
+  .status.saving .dot { background: var(--focus); animation: blink 1s ease-in-out infinite; }
+  .status.saved { color: var(--go); } .status.saved .dot { background: var(--go); }
+  .status.error { color: var(--red); } .status.error .dot { background: var(--red); }
+  @keyframes blink { 50% { opacity: .3; } }
+  .preview { color: var(--ink-2); font-size: var(--t-body); }
+  /* Appearance: one card per theme, with a small picture of it */
+  .themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.2rem, 1fr)); gap: .7rem; }
+  .theme { border: 0; background: transparent; padding: 0; text-align: start; cursor: pointer; color: var(--ink-2); font-size: var(--t-small); }
+  .theme .pv { height: 4.6rem; border-radius: 11px; position: relative; overflow: hidden; outline: 2px solid transparent; outline-offset: 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.08); transition: outline-color .15s; margin-bottom: .45rem; }
+  .theme.on .pv { outline-color: var(--focus); } .theme.on { color: var(--ink); font-weight: 600; }
+  .theme:hover .pv { outline-color: color-mix(in srgb, var(--focus) 45%, transparent); }
+  .pv i { position: absolute; border-radius: 5px; }
+  .pv .c1 { left: 8%; top: 30%; width: 26%; height: 58%; } .pv .c2 { left: 37%; top: 30%; width: 30%; height: 58%; } .pv .c3 { left: 70%; top: 30%; width: 22%; height: 58%; }
+  .pv .hd { left: 8%; top: 11%; width: 44%; height: 9%; border-radius: 3px; }
+  .pv-graphite { background: #1b1e24; } .pv-graphite i { background: #262a32; } .pv-graphite .hd { background: #f2b441; }
+  .pv-midnight { background: #000; } .pv-midnight i { background: #141416; } .pv-midnight .hd { background: #f2b441; }
+  .pv-light { background: #f2f2f5; } .pv-light i { background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.08); } .pv-light .hd { background: #9a5700; }
+  .pv-glass { background: linear-gradient(135deg, #3d5a80 0%, #98476a 55%, #e0a458 100%); }
+  .pv-glass::after { content: ""; position: absolute; inset: 0; backdrop-filter: blur(6px); background: rgba(20,20,30,.25); }
+  .pv-glass i { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.3); z-index: 1; } .pv-glass .hd { background: #ffd60a; }
+  .pv-system { background: linear-gradient(90deg, #f2f2f5 50%, #1b1e24 50%); }
+  .pv-system i { background: rgba(127,127,127,.35); } .pv-system .hd { background: #f2b441; }
+  /* the kind of glass, and its tint */
+  .glassrow { display: flex; flex-wrap: wrap; align-items: center; gap: .9rem 1.2rem; margin-top: 1.1rem; }
+  .seg { display: inline-flex; background: var(--raise); border-radius: 9px; padding: 2px; }
+  .seg button { border: 0; background: transparent; color: var(--ink-2); padding: .3rem .8rem; border-radius: 7px; font-size: var(--t-small); cursor: pointer; }
+  .seg button.on { background: var(--switch-on); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,.22); }
+  .swatches { display: inline-flex; gap: .55rem; align-items: center; }
+  .sw { width: 1.6rem; height: 1.6rem; border-radius: 50%; border: 0; cursor: pointer; outline: 2px solid transparent; outline-offset: 2px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+  .sw.on { outline-color: var(--ink); }
+  .theme small { display: block; color: var(--ink-3); font-weight: 400; margin-top: .1rem; }
+  /* Placement: your displays as macOS arranges them, with the dashboard and widgets on them */
+  .map { position: relative; height: 15rem; border-radius: 14px; background: color-mix(in srgb, var(--raise) 60%, transparent); margin: .2rem 0 1rem; overflow: hidden; touch-action: none; }
+  .disp { position: absolute; border-radius: 9px; background: color-mix(in srgb, var(--ink) 7%, var(--bg)); border: 1px solid var(--rule); overflow: hidden; }
+  .disp.main::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: color-mix(in srgb, var(--ink) 16%, transparent); }   /* the menu bar */
+  .disp.hot { border-color: var(--focus); background: color-mix(in srgb, var(--focus) 12%, var(--bg)); }
+  .disp .lbl { position: absolute; left: .5rem; bottom: .35rem; right: .5rem; font-size: var(--t-meta); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+  .disp .lbl b { color: var(--ink); font-weight: 600; }
+  .dchip { position: absolute; z-index: 3; padding: .2rem .6rem; border-radius: 99px; background: var(--focus); color: #fff; font-size: var(--t-meta); font-weight: 600; cursor: grab; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  .wbox { position: absolute; z-index: 2; border-radius: 4px; background: color-mix(in srgb, var(--amber) 55%, transparent); border: 1px solid var(--amber); cursor: grab; }
+  .wbox span { position: absolute; left: 3px; top: 1px; font-size: 9px; font-weight: 600; color: var(--ink); white-space: nowrap; pointer-events: none; }
+  .dchip.dragging, .wbox.dragging { cursor: grabbing; opacity: .85; z-index: 5; }
+  .snaps { display: grid; gap: .45rem; } .snaprow { display: flex; align-items: center; gap: .5rem; font-size: var(--t-small); }
+  .snaprow .nm { min-width: 8.5rem; color: var(--ink-2); }
+  .snaprow button { border: 0; background: var(--raise); color: var(--ink); width: 1.9rem; height: 1.7rem; border-radius: 7px; cursor: pointer; font-size: .85rem; }
+  .snaprow button:hover { background: var(--act-hover); }
+  code { font: 12px ui-monospace, Menlo, monospace; background: var(--raise); padding: .1rem .35rem; border-radius: 5px; }
+  .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  /* Check the app: one line per check */
+  .checks { list-style: none; padding: 0; margin: .9rem 0 0; font-size: var(--t-small); }
+  .checks li { display: grid; grid-template-columns: 1.3rem 9.5rem 1fr; gap: .5rem; padding: .4rem 0; border-top: 1px solid var(--rule); }
+  .checks .ic { font-weight: 700; } .checks .pass .ic { color: var(--go); } .checks .fail .ic { color: var(--red); }
+  .checks .nm { color: var(--ink-2); } .checks .ln { color: var(--ink); overflow-wrap: anywhere; -webkit-user-select: text; }
+  .checks .fail .ln { color: var(--red); }
+</style>
+</head>
+<body>
+<div class="titlebar" id="titlebar"></div>
+<main id="app"></main>
+<script src="core.js"></script>
+<script>
+let cfg = null, dirty = false, msg = "";
+// Every change saves itself: choices at once, typing a moment after you stop.
+// "status" drives the bar at the bottom; "undoTo" is the config before your last change.
+let status = "idle", saveTimer = null, undoTo = null, savedAt = 0;
+function autosave(delay = 0) {
+  if (!undoTo) undoTo = structuredClone(WD.config);
+  dirty = true; status = "pending"; paintBar();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, delay);
+}
+async function saveNow() {
+  if (jsonDraft) { status = "error"; msg = "That is not valid JSON yet, so it isn't saved."; paintBar(); return; }
+  status = "saving"; paintBar();
+  const err = await WD.bridge({ cmd: "saveConfig", text: JSON.stringify(cfg, null, 2) }).catch((e) => String(e));
+  if (err) { status = "error"; msg = err; } else { dirty = false; status = "saved"; msg = ""; savedAt = Date.now(); }
+  paintBar();
+  setTimeout(() => WD.bridge({ cmd: "arrange", query: true }).then(paintArrange).catch(() => {}), 400);   // widgets may have come or gone
+}
+const app = document.getElementById("app");
+const get = (path, d) => path.split(".").reduce((o, k) => (o == null ? o : o[k]), cfg) ?? d;
+let jsonDraft = false;   // the JSON editor holds text that doesn't parse yet
+const set = (path, v) => {
+  const ks = path.split("."); let o = cfg; ks.slice(0, -1).forEach((k) => (o = o[k] ??= {})); o[ks.at(-1)] = v;
+  syncJson();
+};
+// keep the JSON editor showing what the form fields just changed (unless you are mid-edit in it)
+const syncJson = () => { const ta = document.getElementById("json"); if (ta && !jsonDraft && document.activeElement !== ta) ta.value = JSON.stringify(cfg, null, 2); };
+const LAYERS = [["desktop", "On the desktop, under windows"], ["floating", "Always on top"], ["normal", "Like a normal window"]];
+const NAMES = { meeting: "Calendar", alerts: "What needs you", systems: "Systems" };
+const GLASS = [["smoked", "Smoked", "Dark frosted glass"], ["clear", "Clear", "Thin glass: more of your picture"], ["frosted", "Frosted", "Light, milky glass with dark text"], ["tinted", "Tinted", "Smoked glass washed in a colour"]];
+const TINTS = [["ocean", "Ocean", "#1a61d9"], ["aurora", "Aurora", "#0d9e8c"], ["dusk", "Dusk", "#7340cc"], ["ember", "Ember", "#e6661a"], ["rose", "Rose", "#e0407a"]];
+const THEMES = [["graphite", "Graphite", "The calm dark cockpit"], ["glass", "Liquid Glass", "Your desktop picture, frosted"],
+  ["midnight", "Midnight", "True black"], ["light", "Light", "The Mac light look"], ["system", "Match macOS", "Light or Graphite with your Mac"]];
+const SIZES = [["medium", "Medium"], ["large", "Large"], ["small", "Small"]];
+
+// the connected displays, from the app (refreshed whenever Settings draws)
+let place = { screens: [], current: "", mode: "fullscreen" };
+function displayOptions() {
+  const cur = get("dashboard.display", "builtin");
+  const opts = [["builtin", "Built-in display"], ["main", "The main display (the one with the menu bar)"]]
+    .concat(place.screens.filter((s) => !s.builtin).map((s) => [s.name, `${s.name} (${s.size})`]));
+  if (!opts.some(([v]) => v === cur)) opts.push([cur, `${cur} (not connected)`]);
+  return opts.map(([v, t]) => `<option value="${h(v)}" ${v === cur ? "selected" : ""}>${h(t)}</option>`).join("");
+}
+function loadPlace() {
+  if (drag) return;   // never redraw under your pointer
+  WD.bridge({ cmd: "displays" }).then((p) => {
+    place = p || place;
+    const now = document.getElementById("displayNow"); if (now) now.textContent = place.current ? `Now on ${place.current}` : "";
+    const sel = document.getElementById("display"); if (sel && document.activeElement !== sel) sel.innerHTML = displayOptions();
+    drawMap();
+  }).catch(() => {});
+}
+window.onDisplays = loadPlace;   // the app calls this when a display is plugged in or out
+
+// ── the placement map ──
+// Global points (bottom-left origin, y up, like NSScreen) ↔ map pixels (top-left).
+let map = null, drag = null;
+function drawMap() {
+  const el = document.getElementById("map"); if (!el || !place.screens?.length) return;
+  const fs = place.screens.map((s) => s.frame);
+  const minX = Math.min(...fs.map((f) => f.x)), maxX = Math.max(...fs.map((f) => f.x + f.w));
+  const minY = Math.min(...fs.map((f) => f.y)), maxY = Math.max(...fs.map((f) => f.y + f.h));
+  const pad = 18, W = el.clientWidth - 2 * pad, H = el.clientHeight - 2 * pad;
+  const k = Math.min(W / (maxX - minX), H / (maxY - minY));
+  const ox = pad + (W - (maxX - minX) * k) / 2, oy = pad + (H - (maxY - minY) * k) / 2;
+  map = { k, ox, oy, minX, maxY,
+    toPx: (x, yTop) => [ox + (x - minX) * k, oy + (maxY - yTop) * k],
+    toPt: (px, py) => [minX + (px - ox) / k, maxY - (py - oy) / k] };
+  const names = { meeting: "Calendar", alerts: "Needs you", systems: "Systems" };
+  const specs = Object.fromEntries((cfg.widgets || []).map((w) => [w.id, w]));
+  let html = place.screens.map((s, i) => { const [x, y] = map.toPx(s.frame.x, s.frame.y + s.frame.h);
+    return `<div class="disp ${s.main ? "main" : ""}" data-i="${i}" style="left:${x}px;top:${y}px;width:${s.frame.w * k}px;height:${s.frame.h * k}px">
+      <div class="lbl"><b>${h(s.builtin ? "Built-in" : s.name)}</b> · ${h(s.size)}${s.main ? " · main" : ""}</div></div>`; }).join("");
+  for (const w of place.widgets || []) { const [x, y] = map.toPx(w.frame.x, w.frame.y + w.frame.h);
+    html += `<div class="wbox" data-w="${h(w.id)}" title="${h(names[specs[w.id]?.type] || w.id)} — drag to move" style="left:${x}px;top:${y}px;width:${Math.max(14, w.frame.w * k)}px;height:${Math.max(10, w.frame.h * k)}px"><span>${h(names[specs[w.id]?.type] || w.id)}</span></div>`; }
+  const cur = place.screens.find((s) => s.name === place.current) || place.screens[0];
+  const [cx, cy] = map.toPx(cur.frame.x + cur.frame.w / 2, cur.frame.y + cur.frame.h);
+  html += `<div class="dchip" id="dchip" style="left:${cx}px;top:${cy + 10}px;transform:translateX(-50%)" title="Drag onto a display">Dashboard</div>`;
+  el.innerHTML = html;
+  const snaps = document.getElementById("snaps");
+  if (snaps) snaps.innerHTML = (place.widgets || []).map((w) => `<div class="snaprow"><span class="nm">${h(names[specs[w.id]?.type] || w.id)}</span>
+    ${[["tl", "↖", "Top left"], ["tr", "↗", "Top right"], ["bl", "↙", "Bottom left"], ["br", "↘", "Bottom right"]].map(([c, a, t]) => `<button data-snap="${c}" data-wid="${h(w.id)}" title="${t} of its display" aria-label="${t}">${a}</button>`).join("")}</div>`).join("")
+    || `<span class="help" style="margin:0">Turn on a widget below to place it.</span>`;
+}
+// the display under a point — or, dropped in a gap between displays, the nearest one
+const screenAt = (x, y) => place.screens.find((s) => x >= s.frame.x && x < s.frame.x + s.frame.w && y >= s.frame.y && y < s.frame.y + s.frame.h);
+const nearestScreen = (x, y) => screenAt(x, y) || place.screens.slice().sort((a, b) => dist(a, x, y) - dist(b, x, y))[0];
+const dist = (s, x, y) => Math.hypot(Math.max(s.frame.x - x, 0, x - (s.frame.x + s.frame.w)), Math.max(s.frame.y - y, 0, y - (s.frame.y + s.frame.h)));
+document.addEventListener("pointerdown", (e) => {
+  const t = e.target.closest(".dchip, .wbox"); if (!t || !map) return;
+  e.preventDefault(); t.setPointerCapture(e.pointerId);
+  drag = { el: t, x0: e.clientX, y0: e.clientY, left: t.offsetLeft, top: t.offsetTop, moved: false }; t.classList.add("dragging");
+});
+document.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 3) drag.moved = true;
+  drag.el.style.left = drag.left + e.clientX - drag.x0 + "px"; drag.el.style.top = drag.top + e.clientY - drag.y0 + "px";
+  const c = drag.el.getBoundingClientRect(), m = document.getElementById("map").getBoundingClientRect();
+  const [gx, gy] = map.toPt(c.left - m.left + c.width / 2, c.top - m.top + c.height / 2), s = screenAt(gx, gy);
+  document.querySelectorAll(".disp").forEach((d) => d.classList.toggle("hot", !!s && place.screens[+d.dataset.i] === s));
+});
+document.addEventListener("pointerup", (e) => {
+  if (!drag) return;
+  const { el, moved } = drag; drag = null; el.classList.remove("dragging");
+  document.querySelectorAll(".disp.hot").forEach((d) => d.classList.remove("hot"));
+  // a click is not a drop: it would rewrite dashboard.display ("main" → a name) or nudge a widget by map rounding
+  if (!moved) return drawMap();
+  const c = el.getBoundingClientRect(), m = document.getElementById("map").getBoundingClientRect();
+  if (el.id === "dchip") {   // the dashboard: whichever display it was dropped on
+    const [gx, gy] = map.toPt(c.left - m.left + c.width / 2, c.top - m.top + c.height / 2), s = nearestScreen(gx, gy);
+    if (!s) return drawMap();
+    set("dashboard.display", s.builtin ? "builtin" : s.name);
+    place.current = s.name; drawMap();   // show it there now; the real move takes a second or two
+    saveNow().then(() => WD.bridge({ cmd: "dashboardPlace", move: true }))
+      .then(() => { setTimeout(loadPlace, 2500); setTimeout(loadPlace, 5000); });
+    return;
+  }
+  const w = (place.widgets || []).find((x) => x.id === el.dataset.w); if (!w) return;
+  let [gx, gyTop] = map.toPt(c.left - m.left, c.top - m.top);
+  const s = nearestScreen(gx + w.frame.w / 2, gyTop - w.frame.h / 2), v = s.visible;
+  gx = Math.min(Math.max(gx, v.x), v.x + v.w - w.frame.w);                 // keep it whole on that display
+  gyTop = Math.min(Math.max(gyTop, v.y + w.frame.h), v.y + v.h);
+  WD.bridge({ cmd: "widgetMove", id: w.id, x: Math.round(gx), y: Math.round(gyTop - w.frame.h) }).then(() => setTimeout(loadPlace, 400));
+});
+function snapWidget(id, corner) {
+  const w = (place.widgets || []).find((x) => x.id === id); if (!w) return;
+  const s = place.screens.find((x) => x.name === w.screen) || place.screens[0], v = s.visible, m = 20;
+  const x = corner[1] === "l" ? v.x + m : v.x + v.w - w.frame.w - m;
+  const y = corner[0] === "b" ? v.y + m : v.y + v.h - w.frame.h - m;
+  WD.bridge({ cmd: "widgetMove", id, x: Math.round(x), y: Math.round(y) }).then(() => setTimeout(loadPlace, 400));
+}
+
+function view() {
+  const widgets = get("widgets", []), team = get("team", []), wd = get("workday", {}), n = get("notifications", {});
+  const cal = WD.data.calendar;
+  app.innerHTML = `
+  <h1>Settings</h1>
+  <p class="lead">Changes save as you make them, to <code>~/.config/work-dashboard/config.json</code>, and apply at once.</p>
+
+  <section><h2>Appearance</h2><p class="help">How the dashboard looks. Liquid Glass shows your desktop picture through frosted panels, in full screen too. Widgets keep the macOS widget look.</p>
+    <div class="themes" role="radiogroup" aria-label="Theme">${THEMES.map(([v, name, sub]) => `<button class="theme ${(get("appearance.theme", "graphite")) === v ? "on" : ""}" data-theme="${v}" role="radio" aria-checked="${get("appearance.theme", "graphite") === v}">
+      <div class="pv pv-${v}"><i class="hd"></i><i class="c1"></i><i class="c2"></i><i class="c3"></i></div>${name}<small>${sub}</small></button>`).join("")}</div>
+    ${get("appearance.theme") === "glass" ? `<div class="glassrow"><span class="help" style="margin:0">Glass</span>
+      <span class="seg" role="radiogroup" aria-label="Kind of glass">${GLASS.map(([v, name, sub]) => `<button data-glass="${v}" class="${get("appearance.glass", "smoked") === v ? "on" : ""}" role="radio" aria-checked="${get("appearance.glass", "smoked") === v}" title="${sub}">${name}</button>`).join("")}</span>
+      ${get("appearance.glass") === "tinted" ? `<span class="swatches" role="radiogroup" aria-label="Tint">${TINTS.map(([v, name, c]) => `<button class="sw ${get("appearance.tint", "ocean") === v ? "on" : ""}" data-tint="${v}" style="background:${c}" role="radio" aria-checked="${get("appearance.tint", "ocean") === v}" aria-label="${name}" title="${name}"></button>`).join("")}</span>` : ""}
+      <span class="help" style="margin:0">${h((GLASS.find((g) => g[0] === get("appearance.glass", "smoked")) || GLASS[0])[2])}</span></div>` : ""}</section>
+
+  <section><h2>Placement</h2><p class="help">Your displays as macOS arranges them; plug one in or out and the map follows. Drag <b>Dashboard</b> onto the display it should open on. Drag a widget to any spot, or snap it to a corner — it moves on your screen as you drop it, and it's remembered.</p>
+    <div class="map" id="map"></div>
+    <div class="field"><span>Dashboard opens on</span><div class="row"><select id="display" aria-label="Dashboard opens on">${displayOptions()}</select><span class="help" style="margin:0" id="displayNow"></span></div></div>
+    <div class="field"><span>Opens as</span><select id="placeMode" aria-label="Opens as">
+      <option value="fullscreen" ${place.mode === "fullscreen" ? "selected" : ""}>Its own full-screen desktop</option>
+      <option value="window" ${place.mode === "window" ? "selected" : ""}>A window on the current desktop</option></select></div>
+    <div class="field" style="align-items:start"><span>Snap a widget</span><div class="snaps" id="snaps"></div></div>
+    <p class="help" style="margin-top:.6rem">Which desktop: the dashboard either gets its own full-screen desktop (next to yours) or sits in a window; widgets show on every desktop or on one (see Widgets below). macOS doesn't let apps pick "desktop 2" by number — to keep the dashboard window on one desktop, right-click it in the Dock → Options → Assign To → This Desktop.</p></section>
+
+  <section><h2>Text size</h2><p class="help">Applies to the dashboard and Settings; widgets keep the fixed macOS widget sizes. Also ⌘+ / ⌘− / ⌘0 anywhere in the app.</p>
+    <div class="row"><input type="range" min="0.8" max="1.6" step="0.05" value="${textScale()}" id="scale" aria-label="Text size">
+      <span class="preview" id="scaleVal">${Math.round(textScale() * 100)}%</span>
+      <button class="act ghost" data-do="scaleReset">Reset</button></div></section>
+
+  <section><h2>Widgets</h2><p class="help">Small windows on your desktop, in the same sizes as macOS's own widgets. Move one any time by holding ⌥ and dragging it, or use Arrange to move them all.</p>
+    <table><tr><th>Show</th><th>Widget</th><th>Size</th><th>Where</th><th>Every desktop</th><th></th></tr>
+    ${widgets.map((x, i) => `<tr>
+      <td><input type="checkbox" data-w="${i}.enabled" ${x.enabled !== false ? "checked" : ""} aria-label="Show the ${h(NAMES[x.type] || x.type)} widget"></td>
+      <td>${h(NAMES[x.type] || x.type)}</td>
+      <td><select data-w="${i}.size" aria-label="Size">${SIZES.map(([v, t]) => `<option value="${v}" ${(x.size || "medium") === v ? "selected" : ""}>${t}</option>`).join("")}</select></td>
+      <td><select data-w="${i}.layer" aria-label="Where">${LAYERS.map(([v, t]) => `<option value="${v}" ${(x.layer || "desktop") === v ? "selected" : ""}>${t}</option>`).join("")}</select></td>
+      <td><input type="checkbox" data-w="${i}.allSpaces" ${x.allSpaces !== false ? "checked" : ""} aria-label="On every desktop"></td>
+      <td><button class="act ghost" data-reset="${h(x.id)}">Reset position</button></td></tr>`).join("")}</table>
+    <div class="row" style="margin-top:.9rem"><button class="act" data-do="arrange" id="arrangeBtn">Arrange widgets</button><span class="help" style="margin:0" id="arrangeHelp">Drag the widgets where you want them. Click again to finish.</span></div></section>
+
+  <section><h2>Day panel</h2><p class="help">The right column shows your standup in the morning, and what you did today the rest of the time.</p>
+    <div class="field"><span>Standup starts at</span><input type="time" aria-label="Standup starts at" data-p="workday.standup" value="${h(wd.standup || "09:30")}"></div>
+    <div class="field"><span>Show the standup from</span><div class="row"><input type="time" aria-label="Show the standup from" data-p="workday.standupPanelFrom" value="${h(wd.standupPanelFrom || "09:00")}"> to <input type="time" aria-label="Show the standup until" data-p="workday.standupPanelUntil" value="${h(wd.standupPanelUntil || "11:00")}"></div></div>
+    <div class="field"><span>Work days</span><div class="days">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => `<label><input type="checkbox" data-day="${i}" ${(wd.days || [0, 1, 2, 3, 4]).includes(i) ? "checked" : ""}>${d}</label>`).join("")}</div></div></section>
+
+  <section><h2>Notifications</h2><p class="help">Only for things that need you. Each alert notifies once.</p>
+    <div class="field"><span>Meeting reminder</span><div class="row"><input type="number" min="0" max="60" aria-label="Meeting reminder, minutes before" data-p="notifications.meetingMinutesBefore" data-num value="${n.meetingMinutesBefore ?? 5}"> minutes before (0 turns it off)</div></div>
+    <label class="field"><span>A system goes down</span><input type="checkbox" data-p="notifications.systemDown" ${n.systemDown !== false ? "checked" : ""}></label>
+    <label class="field"><span>An urgent technology issue</span><input type="checkbox" data-p="notifications.newUrgentIssue" ${n.newUrgentIssue !== false ? "checked" : ""}></label>
+    <label class="field"><span>A login expires</span><input type="checkbox" data-p="notifications.loginExpired" ${n.loginExpired !== false ? "checked" : ""}></label>
+    ${cal?.error === "no-access" ? `<p class="help" style="color:var(--amber)">Calendar access is off, so there are no meeting reminders. <a class="link" data-url="x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars">Open Privacy settings</a> and turn on Manara.</p>` : ""}</section>
+
+  <section><h2>Incident investigation</h2><p class="help">What the Investigate button does: it opens ${h(get("incidents.terminal", "iTerm2 (or Terminal)"))} and starts Claude with <code>${h(get("incidents.command", "/incident-investigation"))}</code> and the incident's details.</p>
+    <div class="field"><span>Claude runs</span><select data-p="incidents.permissionMode" aria-label="How Claude runs">
+      ${[["auto", "On its own — risky actions still blocked (auto mode)"], ["default", "Asking before each step"], ["bypassPermissions", "With every check skipped (not recommended)"]]
+        .map(([v, t]) => `<option value="${v}" ${get("incidents.permissionMode", "auto") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+    <p class="help" id="bypassWarn" style="color:var(--amber)" ${get("incidents.permissionMode") === "bypassPermissions" ? "" : "hidden"}>Every check skipped: Claude will run production reads and anything else without asking. Claude Code recommends this only for sandboxes with no internet access.</p></section>
+
+  <section><h2>Your team</h2><p class="help">Their pull requests come first in “Reviews for you”. Use their GitHub login.</p>
+    <table><tr><th>Name</th><th>GitHub login</th><th></th></tr>
+    ${team.map((t, i) => `<tr><td><input type="text" data-t="${i}.name" value="${h(t.name)}" aria-label="Name"></td><td><input type="text" data-t="${i}.github" value="${h(t.github)}" aria-label="GitHub login"></td>
+      <td><button class="act ghost" data-rm="${i}">Remove</button></td></tr>`).join("")}</table>
+    <div style="margin-top:.6rem"><button class="act ghost" data-do="addTeam">Add a teammate</button></div>
+    <div class="field" style="margin-top:.8rem"><span>A review turns amber after</span><div class="row"><input type="number" min="1" data-p="github.reviewWaitHours.amber" data-num value="${get("github.reviewWaitHours.amber", 24)}"> hours, red after <input type="number" min="1" data-p="github.reviewWaitHours.red" data-num value="${get("github.reviewWaitHours.red", 72)}"> hours</div></div></section>
+
+  <section><h2>Sources and keys</h2><p class="help">Keys stay in your Mac's Keychain. Each command asks for the key, so it never appears in your shell history.</p>
+    ${[["Linear", get("linear.keychainService"), "personal API key"], ["Better Stack", get("betterstack.keychainService"), "Uptime API token (read-only)"]]
+      .filter((x) => x[1]).map(([name, svc, what]) => `<div class="field"><span>${name}</span><div class="row"><span class="help" style="margin:0">${what}</span>
+        <button class="act ghost" data-copy="${h(`security add-generic-password -s '${String(svc).replace(/'/g, "")}' -a token -w`)}">Copy the add-key command</button></div></div>`).join("")}</section>
+
+  <section><h2>Check the app</h2><p class="help">Checks that every source is fresh, the dashboard and widgets sit whole on a display, keys and permissions are in place, and Investigate would open the right terminal. It only looks; anything it touches it puts back.</p>
+    <div class="row"><button class="act" data-do="selftest" id="selftestBtn">Run self-test</button><span class="help" style="margin:0" id="selftestSum"></span></div>
+    <ul class="checks" id="checks">${selftestHTML()}</ul></section>
+
+  <section><h2>Everything else</h2><p class="help">Systems, health URLs, pods, Basecamp IDs and the rest live in the config file. README.md explains every key.</p>
+    <div class="row"><button class="act" data-do="openConfig">Open config file</button><button class="act ghost" data-do="json">${WD.state.settingsJson ? "Hide" : "Edit as"} JSON</button></div>
+    ${WD.state.settingsJson ? `<textarea id="json" spellcheck="false" style="margin-top:.8rem">${h(JSON.stringify(cfg, null, 2))}</textarea>` : ""}</section>
+  <div class="bar" id="bar"></div>`;
+  paintBar();
+  WD.bridge({ cmd: "arrange", query: true }).then(paintArrange).catch(() => {});
+  requestAnimationFrame(drawMap);
+}
+// ── Check the app ──
+let selftest = null;   // the last result, kept across redraws of the form
+function selftestHTML() {
+  if (!selftest) return "";
+  return selftest.checks.map((c) => `<li class="${c.ok ? "pass" : "fail"}"><span class="ic">${c.ok ? "✓" : "✗"}</span><span class="nm">${h(c.group)} · ${h(c.name)}</span><span class="ln">${h(c.line)}</span></li>`).join("");
+}
+async function runSelftest() {
+  const b = document.getElementById("selftestBtn"), sum = document.getElementById("selftestSum");
+  b.disabled = true; b.textContent = "Checking…"; sum.textContent = "";
+  try { selftest = JSON.parse(await WD.bridge({ cmd: "selftest" })); }
+  catch (e) { selftest = null; sum.textContent = `Couldn't run it: ${e}`; }
+  b.disabled = false; b.textContent = "Run self-test";
+  document.getElementById("checks").innerHTML = selftestHTML();
+  if (selftest) sum.textContent = selftest.failed ? `${selftest.failed} of ${selftest.checks.length} need a look` : `All ${selftest.checks.length} checks passed`;
+  if (selftest) sum.style.color = selftest.failed ? "var(--red)" : "var(--go)";
+}
+
+// the button says what a click will do; with no widget showing there is nothing to arrange
+function paintArrange(on) {
+  const b = document.getElementById("arrangeBtn"), help = document.getElementById("arrangeHelp"); if (!b) return;
+  const any = (cfg?.widgets || []).some((w) => w.enabled !== false);
+  b.textContent = on ? "Done arranging" : "Arrange widgets";
+  b.className = on ? "act go" : "act"; b.disabled = !any && !on;
+  help.textContent = on ? "The widgets have dashed outlines: drag them where you want them." : any ? "Drag the widgets where you want them. Click again to finish." : "Turn on a widget above first.";
+}
+function paintBar() {
+  const bar = document.getElementById("bar"); if (!bar) return;
+  const text = { idle: "All changes are saved", pending: "Saving…", saving: "Saving…", saved: "✓ Saved — applied now", error: msg || "Couldn't save" }[status];
+  const cls = { pending: "saving", saving: "saving", saved: "saved", error: "error" }[status] || "";
+  bar.innerHTML = `<span class="status ${cls}" role="status"><span class="dot"></span>${h(text)}</span>
+    ${undoTo && status !== "saving" && status !== "pending" ? `<button class="act ghost" data-do="undo" title="Go back to how the settings were before your last changes">Undo</button>` : ""}`;
+  if (status === "saved") { clearTimeout(paintBar._t); paintBar._t = setTimeout(() => { if (status === "saved") { status = "idle"; paintBar(); } }, 4000); }
+}
+
+app.addEventListener("change", (e) => {
+  if (e.target.id === "display") { set("dashboard.display", e.target.value); saveNow().then(() => WD.bridge({ cmd: "dashboardPlace", move: true })).then(() => setTimeout(loadPlace, 1500)); }
+  if (e.target.id === "placeMode") { place.mode = e.target.value; WD.bridge({ cmd: "dashboardPlace", mode: e.target.value }).then(() => setTimeout(loadPlace, 1500)); }
+});
+app.addEventListener("input", (e) => {
+  const t = e.target;
+  if (t.id === "display" || t.id === "placeMode") return;   // handled on change: these act, not just save
+  if (t.id === "scale") { WD.setState("textScale", Number(t.value)); document.getElementById("scaleVal").textContent = Math.round(t.value * 100) + "%"; return; }
+  const typing = t.tagName === "TEXTAREA" || ["text", "number", "time"].includes(t.type);
+  const later = typing ? 900 : t.type === "range" ? 300 : 0;
+  if (t.id === "json") {
+    try { cfg = JSON.parse(t.value); jsonDraft = false; autosave(1200); }
+    catch (err) { jsonDraft = true; clearTimeout(saveTimer); status = "error"; msg = "That is not valid JSON yet, so it isn't saved."; paintBar(); }   // keep your text
+    return;
+  }
+  if (t.dataset.p) {
+    if (t.dataset.num !== undefined && t.value.trim() === "") return;   // an empty number box is not 0
+    set(t.dataset.p, t.type === "checkbox" ? t.checked : t.dataset.num !== undefined ? Number(t.value) : t.value); autosave(later);
+    // the warning follows the choice at once (the save's echo doesn't redraw the form)
+    if (t.dataset.p === "incidents.permissionMode") document.getElementById("bypassWarn").hidden = t.value !== "bypassPermissions";
+  }
+  if (t.dataset.w) { const [i, k] = t.dataset.w.split("."); cfg.widgets[i][k] = t.type === "checkbox" ? t.checked : t.value; syncJson(); autosave(later); }
+  if (t.dataset.t) { const [i, k] = t.dataset.t.split("."); cfg.team[i][k] = t.value.trim(); syncJson(); autosave(later); }
+  if (t.dataset.day !== undefined) { const days = [...app.querySelectorAll("[data-day]")].filter((x) => x.checked).map((x) => Number(x.dataset.day)); set("workday.days", days); autosave(); }
+});
+// leaving a field saves it right away (no waiting for the pause)
+app.addEventListener("change", (e) => { if (status === "pending" && e.target.matches("input, textarea, select")) { clearTimeout(saveTimer); saveNow(); } });
+app.addEventListener("click", async (e) => {
+  const sn = e.target.closest("button[data-snap]");
+  if (sn) { snapWidget(sn.dataset.wid, sn.dataset.snap); return; }
+  const gl = e.target.closest("button[data-glass]"), tn = e.target.closest("button[data-tint]");
+  if (gl) { set("appearance.glass", gl.dataset.glass); view(); autosave(); return; }
+  if (tn) { set("appearance.tint", tn.dataset.tint); view(); autosave(); return; }
+  const th = e.target.closest("button.theme[data-theme]");   // (the page root carries data-theme too)
+  if (th) { set("appearance.theme", th.dataset.theme); view(); autosave(); return; }   // applies at once: the save carries it to every window
+  const t = e.target.closest("[data-do],[data-reset],[data-rm],[data-copy],[data-url]"); if (!t) return;
+  if (t.dataset.copy) { const was = t.textContent; await WD.copy(t.dataset.copy); t.textContent = "Copied — paste it in Terminal"; setTimeout(() => (t.textContent = was), 2500); return; }
+  if (t.dataset.url) { WD.open(t.dataset.url); return; }
+  if (t.dataset.reset) { WD.bridge({ cmd: "widgetFrame", id: t.dataset.reset }); return; }
+  if (t.dataset.rm) { cfg.team.splice(Number(t.dataset.rm), 1); view(); autosave(); return; }
+  const d = t.dataset.do;
+  if (d === "scaleReset") { WD.setState("textScale", 1); view(); }
+  if (d === "arrange") WD.bridge({ cmd: "arrange" }).then(paintArrange).catch(() => {});
+  if (d === "openConfig") WD.bridge({ cmd: "openConfig" });
+  if (d === "selftest") runSelftest();
+  if (d === "addTeam") { (cfg.team ??= []).push({ name: "", github: "" }); view(); }   // saved once you type the name
+  if (d === "json") { WD.setState("settingsJson", !WD.state.settingsJson); view(); }
+  if (d === "undo" && undoTo) { cfg = undoTo; undoTo = null; jsonDraft = false; view(); await saveNow(); undoTo = null; paintBar(); }
+});
+
+// a config change from elsewhere refreshes the form — but never over your unsaved edits
+WD.on((kind) => {
+  if (dirty || jsonDraft || !(kind === "config" || !cfg)) return;
+  if (cfg && JSON.stringify(WD.config) === JSON.stringify(cfg)) return;   // our own save, echoed back: keep focus
+  cfg = structuredClone(WD.config); view();
+});
+WD.boot().then(() => { cfg = structuredClone(WD.config); view(); loadPlace(); });
+addEventListener("focus", loadPlace);   // a display plugged in while Settings was in the background
+// the titlebar band's hairline: only once something has scrolled under it
+document.addEventListener("scroll", () => document.getElementById("titlebar").classList.toggle("scrolled", (document.scrollingElement.scrollTop || document.body.scrollTop) > 0), true);
+</script>
+</body>
+</html>
